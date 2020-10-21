@@ -1,8 +1,10 @@
 # open-unity.sh
 
-This bash script opens a Unity project from the command line.
+This bash script opens a Unity project from the command line. I wrote this because I needed to redirect Unity's logs to a known, sane place, and not lose them every time Unity crashed or restarted. It kinda grew from there.
 
-It can autodetect what the current build target is for a project, what Unity version is it set to, what Unity versions you have installed on your system, and it will try its best to open a project with the correct settings. Alternatively, you can use it to figure out what a project is set to, if you can't remember (I know I can't). It will ask for confirmation before actually running Unity, and show you the command line it will use to do it, so you can doublecheck things.
+It can autodetect what the current build target is for a project, what Unity version is it set to, what Unity versions you have installed on your system, and it will try its best to open a project with the correct settings. It will also redirect Unity logs to a Logs folder in the project, and rotate them on every run, so no loga are ever lost.
+
+Alternatively, you can use it to figure out what a project is set to, if you can't remember (I know I can't). It will ask for confirmation before actually running Unity, and show you the command line it will use to do it, so you can doublecheck things.
 
 I run this on a git bash shell on Windows, and on Terminal (well, iTerm) on macOS. If you get weird errors on mac, make sure the script's line endings are set to LF (Linux), bash no like CRLF outside of Windows.
 
