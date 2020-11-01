@@ -129,8 +129,8 @@ EOF
 
     Cache server:
     -z|--cache [value]            IP or hostname of unity accelerator
-    -v1                           Use cache server v1
-    -v2                           Use cache server v2 (accelerator)
+    --v1                           Use cache server v1
+    --v2                           Use cache server v2 (accelerator)
 EOF
 }
 
@@ -217,11 +217,11 @@ while (( "$#" )); do
       QUIT=1
       shift
     ;;
-    -v1)
+    --v1)
       CACHEVERSION=1
       shift
     ;;
-    -v2)
+    --v2)
       CACHEVERSION=2
       shift
     ;;
@@ -251,7 +251,15 @@ fi
 
 if [[ x"${UNITYPATH}" == x"" ]]; then
   if [[ x"${UNITYVERSION}" == x"" ]]; then
-    UNITYVERSION="$( $CAT "$PROJECTPATH/ProjectSettings/ProjectVersion.txt" | $GREP "m_EditorVersion:" | $CUT -d' ' -f 2)"
+    if [[ -f "$PROJECTPATH/ProjectSettings/ProjectVersion.txt" ]]; then
+      UNITYVERSION="$( $CAT "$PROJECTPATH/ProjectSettings/ProjectVersion.txt" | $GREP "m_EditorVersion:" | $CUT -d' ' -f 2)"
+    else
+      echo "" >&2
+      echo "Error: No Unity version detected in project." >&2
+      echo "Set which Unity to use with -v" >&2
+      usage
+      exit -1 
+    fi
   fi
 
   if [[ -d "${BASEUNITYPATH}/${UNITYVERSION}" ]]; then
