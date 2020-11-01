@@ -240,7 +240,7 @@ while (( "$#" )); do
   esac
 done
 
-PROJECTPATH="$(echo "$PROJECTPATH" | sed -r 's,/$,,')"
+PROJECTPATH="$(echo "$PROJECTPATH" | $SED -E 's,/$,,')"
 
 if [[ ! -d "${PROJECTPATH}/Assets" ]]; then
   echo "" >&2
