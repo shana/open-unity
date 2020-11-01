@@ -57,6 +57,6 @@ Make sure the script is set to executable (`chmod +x open-unity.sh`) if you want
 
 ```
     -z|--cache [value]            IP or hostname of unity accelerator
-    -v1                           Use cache server v1
-    -v2                           Use cache server v2 (accelerator)
+    --v1                           Use cache server v1
+    --v2                           Use cache server v2 (accelerator)
 ```
