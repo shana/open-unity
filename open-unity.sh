@@ -43,6 +43,7 @@ CUT="${BIN}cut"
 DATE="${BIN}date"
 CP="${BIN}cp"
 BIN2TXT="binary2text"
+SED="sed"
 
 if [[ x"$OS" == x"Windows" ]]; then
   BIN2TXT="${BIN2TXT}.exe"
@@ -50,7 +51,7 @@ fi
 
 if [[ -f $HUBPATH ]]; then
 
-  tmp="$( $CAT $HUBPATH | sed -r 's, ,\\ ,g' | sed -r 's,",,g' )"
+  tmp="$( $CAT $HUBPATH | $SED -E 's, ,\\ ,g' | $SED -E 's,",,g' )"
   if [[ x"$tmp" != x"" ]]; then
     BASEUNITYPATH="$tmp"
     if [[ x"$OS" == x"Windows" ]]; then
@@ -70,6 +71,7 @@ UNITYPATH=""
 
 function usage_platforms() {
   cat << EOF
+
     Build Targets (optional, autodetected from current project settings):
     -w|--windows                  Set build target to Win64
     -m|--mac                      Set build target to Mac
@@ -85,12 +87,23 @@ EOF
 function usage() {
   cat << EOF
 
+Usage:
+
     open.sh [Options] [Build Target] [Batch mode flags] [other flags passed to Unity directly]
 
     Example:
     ./open.sh -p [Path to Unity Project folder]
 
     By default it will detect what build target and Unity version the project is currently set to and use that.
+
+    Use -h for a list of all the options.
+EOF
+}
+
+function help() {
+  usage
+
+  cat << EOF
 
     Options:
     -p|--path [value]             Project path relative to the current directory (optional, current directory by default)
@@ -102,6 +115,7 @@ EOF
   usage_platforms
 
   cat << EOF
+
     Batch mode:
     -q|--quit                     Run Unity with -quit flag
     -b|--batch                    Runs Unity in -batchmode mode. The default method name is BuildHelp.BuildIt_[TARGET]_[CONFIGURATION]. 
@@ -215,6 +229,10 @@ while (( "$#" )); do
       CACHEVERSION=0
       shift
     ;;
+    -h|--help)
+      help
+      exit 0
+    ;;
     *)
     ARGS="$ARGS$(echo $1|xargs) "
     shift
@@ -225,8 +243,9 @@ done
 PROJECTPATH="$(echo "$PROJECTPATH" | sed -r 's,/$,,')"
 
 if [[ ! -d "${PROJECTPATH}/Assets" ]]; then
-  usage
+  echo "" >&2
   echo "Error: Invalid path ${PROJECTPATH}" >&2
+  usage
   exit 1
 fi
 
@@ -239,8 +258,10 @@ if [[ x"${UNITYPATH}" == x"" ]]; then
     echo "Using Unity v$UNITYVERSION"
     UNITYPATH="${BASEUNITYPATH}/${UNITYVERSION}"
   else
+    echo "" >&2
     echo "Error: Unity not found at ${BASEUNITYPATH}/${UNITYVERSION}" >&2
     echo "Install Unity v$UNITYVERSION or use a different version with -v" >&2
+    usage
     exit -1 
   fi
 
@@ -257,8 +278,9 @@ else
 fi
 
 if [[ ! -d "${UNITYPATH}" ]]; then
-  usage
+  echo "" >&2
   echo "Error: Unity not found at ${UNITYPATH}" >&2
+  usage
   exit 1
 fi
 
@@ -313,7 +335,9 @@ if [[ x"$TARGET" == x"" ]]; then
       esac
 
     else
+      echo "" >&2
       echo "Error: Project has no active target, pass -w|-s|x to set one" >&2
+      usage
       exit 1
     fi
 
@@ -321,7 +345,9 @@ if [[ x"$TARGET" == x"" ]]; then
 fi
 
 if [[ x"$TARGET" == x"" ]]; then
+  echo "" >&2
   echo "Error: Project has no active target, pass a build target flag to set one" >&2
+  usage
   usage_platforms
   exit 1
 fi
