@@ -1,7 +1,7 @@
 #!/bin/bash -eu
 
 # ------------------------------------------------------------
-# Copyright (c) 2020 Andreia Gaita <shana@spoiledcat.net>
+# Copyright (c) 2020, 2021 Andreia Gaita <shana@spoiledcat.net>
 # Licensed under the MIT License.
 # ------------------------------------------------------------
 
@@ -79,6 +79,7 @@ function usage_platforms() {
     -i|--ios                      Set build target to iOS
     -x|--xbox                     Set build target to xbox
     -s|--ps4                      Set build target to ps4
+    -5|--ps5                      Set build target to ps5
     -n|--switch                   Set build target to Switch
 EOF
 }
@@ -170,6 +171,10 @@ while (( "$#" )); do
     ;;
     -s|--ps4)
       TARGET=PS4
+      shift
+    ;;
+    -5|--ps5)
+      TARGET=PS5
       shift
     ;;
     -w|--windows)
@@ -296,6 +301,8 @@ if [[ ! -f "$UNITYTOOLSPATH/$BIN2TXT" ]]; then
   echo "Error: Unity not found at ${UNITYPATH}" >&2
   exit 1
 fi
+LOGFOLDER="$PROJECTPATH/Logs"
+LOGFILE="$LOGFOLDER/Editor.log"
 
 if [[ x"$TARGET" == x"" ]]; then
 
@@ -386,8 +393,6 @@ fi
 
 UNITY_ARGS="${UNITY_ARGS} ${ARGS}"
 
-LOGFOLDER="$PROJECTPATH/Logs"
-LOGFILE="$LOGFOLDER/Editor.log"
 
 echo "Opening project ${PROJECTPATH} with $UNITYVERSION : $TARGET"
 echo "\"$UNITYPATH/Unity\" -buildTarget $TARGET -projectPath \"$PROJECTPATH\" -logFile \"$LOGFILE\" $UNITY_ARGS &"
