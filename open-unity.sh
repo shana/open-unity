@@ -276,6 +276,10 @@ if [[ x"${UNITYPATH}" == x"" ]]; then
       usage
       exit -1 
     fi
+  else
+    if [[ ! -d "${BASEUNITYPATH}/${UNITYVERSION}" && -d "${BASEUNITYPATH}/${UNITYVERSION}f1" ]]; then
+      UNITYVERSION="${UNITYVERSION}f1"
+    fi
   fi
 
   if [[ -d "${BASEUNITYPATH}/${UNITYVERSION}" ]]; then
