@@ -15,25 +15,28 @@ UNITYVERSION=""
 CACHESERVER="cachepi"
 #default cache server version (2 is accelerator)
 CACHEVERSION=2
-# folder where you stuff all your Unitys, pass in --hub to set
+# folder where you stuff all your Unitys, pass in -u to set
 BASEUNITYPATH="/Applications/Unity/Hub/Editor"
 
 HUBPATH=""
 OS="Mac"
 BIN=""
 UNITYTOOLSPATH=""
+CONFIGURATION=Dev
+BATCH=0
+PROJECTPATH="$DIR"
+TARGET=""
+QUIT=0
+METHOD=""
+ARGS=""
+UNITYPATH=""
 
 if [[ -e "/c/" ]]; then
   OS="Windows"
-  BIN="/usr/bin/"
-  BASEUNITYPATH="C:/Program\ Files/Unity/Hub/Editor"
-  HUBPATH="$( echo ~/AppData/Roaming/UnityHub/ | xargs realpath )" || true
-else
-  HUBPATH="$( pushd ~/Library/Application\ Support/UnityHub/ && pwd && popd )" || true
 fi
 
-if [[ -d $HUBPATH ]]; then
-  HUBPATH="$HUBPATH/secondaryInstallPath.json"
+if [[ x"$OS" == x"Windows" ]]; then
+  BIN="/usr/bin/"
 fi
 
 RM="${BIN}rm"
@@ -46,28 +49,9 @@ BIN2TXT="binary2text"
 SED="sed"
 
 if [[ x"$OS" == x"Windows" ]]; then
+  BASEUNITYPATH="C:/Program\ Files/Unity/Hub/Editor"
   BIN2TXT="${BIN2TXT}.exe"
 fi
-
-if [[ -f $HUBPATH ]]; then
-
-  tmp="$( $CAT $HUBPATH | $SED -E 's, ,\\ ,g' | $SED -E 's,",,g' )"
-  if [[ x"$tmp" != x"" ]]; then
-    BASEUNITYPATH="$tmp"
-    if [[ x"$OS" == x"Windows" ]]; then
-      BASEUNITYPATH="$( realpath $BASEUNITYPATH )"
-    fi
-  fi
-fi
-
-CONFIGURATION=Dev
-BATCH=0
-PROJECTPATH="$DIR"
-TARGET=""
-QUIT=0
-METHOD=""
-ARGS=""
-UNITYPATH=""
 
 function usage_platforms() {
   cat << EOF
@@ -98,6 +82,7 @@ Usage:
     By default it will detect what build target and Unity version the project is currently set to and use that.
 
     Use -h for a list of all the options.
+    Use --trace to enable bash trace mode (see everything as it is executed)
 EOF
 }
 
@@ -130,8 +115,9 @@ EOF
 
     Cache server:
     -z|--cache [value]            IP or hostname of unity accelerator
-    --v1                           Use cache server v1
-    --v2                           Use cache server v2 (accelerator)
+    --v1                          Use cache server v1
+    --v2                          Use cache server v2 (accelerator)
+    --nocache                     Don't add any cache server parameters
 EOF
 }
 
@@ -238,12 +224,37 @@ while (( "$#" )); do
       help
       exit 0
     ;;
+    --trace)
+     { set -x; } 2>/dev/null
+     shift
+    ;;
+
     *)
     ARGS="$ARGS$(echo $1|xargs) "
     shift
     ;;
   esac
 done
+
+if [[ x"$OS" == x"Windows" ]]; then
+  HUBPATH="$( echo ~/AppData/Roaming/UnityHub/ | xargs realpath )" || true
+else
+  HUBPATH="$( pushd ~/Library/Application\ Support/UnityHub/ && pwd )" || true
+fi
+
+if [[ -d $HUBPATH ]]; then
+  HUBPATH="$HUBPATH/secondaryInstallPath.json"
+fi
+
+if [[ -f $HUBPATH ]]; then
+  tmp="$( $CAT "$HUBPATH" | $SED -E 's, ,\\ ,g' | $SED -E 's,",,g' )"
+  if [[ x"$tmp" != x"" ]]; then
+    BASEUNITYPATH="$tmp"
+    if [[ x"$OS" == x"Windows" ]]; then
+      BASEUNITYPATH="$( realpath $BASEUNITYPATH )"
+    fi
+  fi
+fi
 
 PROJECTPATH="$(echo "$PROJECTPATH" | $SED -E 's,/$,,')"
 
