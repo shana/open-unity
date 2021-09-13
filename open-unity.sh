@@ -49,7 +49,7 @@ BIN2TXT="binary2text"
 SED="sed"
 
 if [[ x"$OS" == x"Windows" ]]; then
-  BASEUNITYPATH="C:/Program\ Files/Unity/Hub/Editor"
+  BASEUNITYPATH="/c/Program Files/Unity/Hub/Editor"
   BIN2TXT="${BIN2TXT}.exe"
 fi
 
