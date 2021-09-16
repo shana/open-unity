@@ -36,7 +36,9 @@ Make sure the script is set to executable (`chmod +x open-unity.sh`) if you want
     -i|--ios                      Set build target to iOS
     -x|--xbox                     Set build target to xbox
     -s|--ps4                      Set build target to ps4
+    -5|--ps5                      Set build target to ps5
     -n|--switch                   Set build target to Switch
+    -g|--webgl                    Set build target to WebGL
 ```
 
 #### Batch mode flags
@@ -57,6 +59,7 @@ Make sure the script is set to executable (`chmod +x open-unity.sh`) if you want
 
 ```
     -z|--cache [value]            IP or hostname of unity accelerator
-    --v1                           Use cache server v1
-    --v2                           Use cache server v2 (accelerator)
+    --v1                          Use cache server v1
+    --v2                          Use cache server v2 (accelerator)
+    --nocache                     Don't add any cache server parameters
 ```
