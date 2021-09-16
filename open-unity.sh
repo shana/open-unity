@@ -65,6 +65,7 @@ function usage_platforms() {
     -s|--ps4                      Set build target to ps4
     -5|--ps5                      Set build target to ps5
     -n|--switch                   Set build target to Switch
+    -g|--webgl                    Set build target to WebGL
 EOF
 }
 
@@ -181,6 +182,10 @@ while (( "$#" )); do
     ;;
     -i|--ios)
       TARGET=iOS
+      shift
+    ;;
+    -g|--webgl)
+      TARGET=WebGL
       shift
     ;;
     -e|--method)
@@ -349,6 +354,9 @@ if [[ x"$TARGET" == x"" ]]; then
         ;;
         19)
         TARGET=Win64
+        ;;
+        20)
+        TARGET=WebGL
         ;;
         31)
         TARGET=PS4
