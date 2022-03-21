@@ -1,7 +1,7 @@
 #!/bin/bash -eu
 
 # ------------------------------------------------------------
-# Copyright (c) 2020, 2021 Andreia Gaita <shana@spoiledcat.net>
+# Copyright (c) 2020, 2021, 2022 Andreia Gaita <shana@spoiledcat.net>
 # Licensed under the MIT License.
 # ------------------------------------------------------------
 
@@ -23,8 +23,9 @@ OS="Mac"
 BIN=""
 UNITYTOOLSPATH=""
 CONFIGURATION=Dev
+BUILD=0
 BATCH=0
-PROJECTPATH="$DIR"
+PROJECTPATH=
 TARGET=""
 QUIT=0
 METHOD=""
@@ -53,22 +54,46 @@ if [[ x"$OS" == x"Windows" ]]; then
   BIN2TXT="${BIN2TXT}.exe"
 fi
 
+declare -A PLATFORMS
+PLATFORMS=(\
+    [2]=Mac [-m]=Mac [--mac]=Mac \
+    [5]=Win32 [--win32]=Win32 \
+    [9]=iOS [-i]=iOS [--mac]=iOS \
+    [13]=Android [-a]=Android [--android]=Android \
+    [19]=Win64 [-w]=Win64 [--windows]=Win64 \
+    [20]=WebGL [-g]=WebGL [--webgl]=WebGL \
+    [24]=Linux64 [-l]=Linux64 [--linux]=Linux64 \
+    [31]=PS4 [-s]=PS4 [--ps4]=PS4 \
+    [33]=XboxOne [-x]=XboxOne [--xbox]=XboxOne \
+    [37]=tvOS [--tvos]=tvOS \
+    [38]=Switch [-n]=Switch [--switch]=Switch \
+    [40]=Stadia [--stadia]=Stadia \
+    [42]=GameCoreScarlett [-xs]=GameCoreScarlett [--scarlett]=GameCoreScarlett [--xboxs]=GameCoreScarlett \
+    [43]=GameCoreXboxOne [-xx]=GameCoreXboxOne [--xbox1gdk]=GameCoreXboxOne \
+    [44]=PS5 [-5]=PS5 [--ps5]=PS5 \
+)
+declare -r PLATFORMS
+
 function usage_platforms() {
   cat << EOF
 
     Build Targets (optional, autodetected from current project settings):
     -w|--windows                  Set build target to Win64
     -m|--mac                      Set build target to Mac
+    -l|--linux                    Set build target to Linux
     -a|--android                  Set build target to Android
     -i|--ios                      Set build target to iOS
-    -x|--xbox                     Set build target to xbox
+    -x|--xbox                     Set build target to Xbox One
     -s|--ps4                      Set build target to ps4
     -5|--ps5                      Set build target to ps5
     -n|--switch                   Set build target to Switch
     -g|--webgl                    Set build target to WebGL
+    -xx|--xbox1gdk                Set build target to GameCore Xbox One
+    -xs|--xboxs                   Set build target to GameCore Xbox Series S/X
+    --tvos                        Set build target to tvOS
+    --stadia                      Set build target to Stadia
 EOF
 }
-
 
 function usage() {
   cat << EOF
@@ -122,108 +147,69 @@ EOF
 EOF
 }
 
+
+function main() {
+
 while (( "$#" )); do
   case "$1" in
     -d|--debug)
       CONFIGURATION="Dev"
-      shift
     ;;
     -r|--release)
       CONFIGURATION="Release"
-      shift
     ;;
-    -b|--build)
+    -b|--batch)
       BATCH=1
       QUIT=1
-      shift
+    ;;
+    -b|--build)
+      BUILD=1
+      BATCH=1
+      QUIT=1
     ;;
     -c)
       shift
       CONFIGURATION=$1
-      shift
     ;;
     -v|--version)
       shift
       UNITYVERSION="$1"
-      shift
     ;;
     -p|--path)
       shift
       PROJECTPATH="${DIR}/${1}"
-      shift
-    ;;
-    -x|--xbox)
-      TARGET=XboxOne
-      shift
-    ;;
-    -s|--ps4)
-      TARGET=PS4
-      shift
-    ;;
-    -5|--ps5)
-      TARGET=PS5
-      shift
-    ;;
-    -w|--windows)
-      TARGET=Win64
-      shift
-    ;;
-    -n|--switch)
-      TARGET=Switch
-      shift
-    ;;
-    -a|--android)
-      TARGET=Android
-      shift
-    ;;
-    -m|--mac)
-      TARGET=Mac
-      shift
-    ;;
-    -i|--ios)
-      TARGET=iOS
-      shift
-    ;;
-    -g|--webgl)
-      TARGET=WebGL
-      shift
     ;;
     -e|--method)
       shift
       METHOD=$1
       QUIT=1
-      shift
     ;;
     -z|--cache)
       shift
       CACHESERVER="$1"
-      shift
-      ;;
+    ;;
     -u)
       shift
       BASEUNITYPATH="$1"
-      shift
-      ;;
+    ;;
     --unity)
       shift
       UNITYPATH="$1"
-      shift
-      ;;
+    ;;
     -q|--quit)
       QUIT=1
-      shift
+    ;;
+    --noquit)
+      QUIT=0
     ;;
     --v1)
       CACHEVERSION=1
-      shift
     ;;
     --v2)
       CACHEVERSION=2
-      shift
     ;;
     --nocache)
       CACHEVERSION=0
-      shift
     ;;
     -h|--help)
       help
@@ -231,20 +217,29 @@ while (( "$#" )); do
     ;;
     --trace)
      { set -x; } 2>/dev/null
-     shift
     ;;
-
     *)
-    ARGS="$ARGS$(echo $1|xargs) "
-    shift
+    # check if it's a platform flag, otherwise append it to the arguments
+    if [[ ! -z ${PLATFORMS[$1]:-} ]]; then
+      TARGET=${PLATFORMS[$1]}
+    elif [[ -d $1 && ! -d $PROJECTPATH ]]; then
+      PROJECTPATH=$(cd $1 && pwd)
+    else
+      ARGS="$ARGS$(echo $1|xargs) "
+    fi
     ;;
   esac
+  shift
 done
+
+if [[ ! -d $PROJECTPATH ]]; then
+  $PROJECTPATH="$DIR"
+fi
 
 if [[ x"$OS" == x"Windows" ]]; then
   HUBPATH="$( echo ~/AppData/Roaming/UnityHub/ | xargs realpath )" || true
 else
-  HUBPATH="$( pushd ~/Library/Application\ Support/UnityHub/ && pwd )" || true
+  HUBPATH="$( cd ~/Library/Application\ Support/UnityHub/ && pwd )" || true
 fi
 
 if [[ -d $HUBPATH ]]; then
@@ -339,43 +334,18 @@ if [[ x"$TARGET" == x"" ]]; then
       ACTIVETARGET="$( $CAT "$BUILDSETTINGS" | $GREP "m_ActiveBuildTarget " | CUT -d' ' -f 2)"
       $RM -f "$BUILDSETTINGS" || true
 
-      case "$ACTIVETARGET" in
-        2)
-        TARGET=Mac
-        ;;
-        5)
-        TARGET=Win
-        ;;
-        9)
-        TARGET=iOS
-        ;;
-        13)
-        TARGET=Android
-        ;;
-        19)
-        TARGET=Win64
-        ;;
-        20)
-        TARGET=WebGL
-        ;;
-        31)
-        TARGET=PS4
-        ;;
-        33)
-        TARGET=XboxOne
-        ;;
-        38)
-        TARGET=Switch
-        ;;
-        *)
+      TARGET=${PLATFORMS[$ACTIVETARGET]}
+
+      if [[ x"$TARGET" == x"" ]]; then
         echo "Error: Invalid target $ACTIVETARGET"
         exit 1
-      esac
+      fi
 
     else
       echo "" >&2
-      echo "Error: Project has no active target, pass -w|-s|x to set one" >&2
+      echo "Error: Project has no active target, pass one of the platform flags to set one" >&2
       usage
+      usage_platforms
       exit 1
     fi
 
@@ -384,13 +354,13 @@ fi
 
 if [[ x"$TARGET" == x"" ]]; then
   echo "" >&2
-  echo "Error: Project has no active target, pass a build target flag to set one" >&2
+  echo "Error: Project has no active target, pass one of the platform flags to set one" >&2
   usage
   usage_platforms
   exit 1
 fi
 
-if [[ x"$BATCH" == x"1" && x"$METHOD" == x"" ]]; then
+if [[ x"$BUILD" == x"1" && x"$METHOD" == x"" ]]; then
   METHOD="BuildHelp.BuildIt_${TARGET}_${CONFIGURATION}"
 fi
 
@@ -402,12 +372,13 @@ elif  [[ x"$CACHEVERSION" == x"2" ]]; then
   UNITY_ARGS="${UNITY_ARGS} -cacheServerEndpoint $CACHESERVER -adb2 -EnableCacheServer"
 fi
 
-if [[ x"$QUIT" == x"1" ]]; then
-  UNITY_ARGS="${UNITY_ARGS} -quit"
-fi
-
 if [[ x"$BATCH" == x"1" ]]; then
   UNITY_ARGS="${UNITY_ARGS} -batchmode"
+fi
+
+
+if [[ x"$QUIT" == x"1" ]]; then
+  UNITY_ARGS="${UNITY_ARGS} -quit"
 fi
 
 if [[ x"$METHOD" != x"" ]]; then
@@ -434,3 +405,6 @@ if [[ x"$key" == x'' ]]; then
 
 fi
 
+}
+
+main "$@"
