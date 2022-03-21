@@ -23,11 +23,15 @@ OS="Mac"
 BIN=""
 UNITYTOOLSPATH=""
 CONFIGURATION=Dev
+
 BUILD=0
 BATCH=0
+QUIT=0
+LICENSE=
+LICRETURN=0
+
 PROJECTPATH=
 TARGET=""
-QUIT=0
 METHOD=""
 ARGS=""
 UNITYPATH=""
@@ -48,6 +52,7 @@ DATE="${BIN}date"
 CP="${BIN}cp"
 BIN2TXT="binary2text"
 SED="sed"
+MKDIR="mkdir -p"
 
 if [[ x"$OS" == x"Windows" ]]; then
   BASEUNITYPATH="/c/Program Files/Unity/Hub/Editor"
@@ -130,7 +135,7 @@ EOF
 
     Batch mode:
     -q|--quit                     Run Unity with -quit flag
-    -b|--batch                    Runs Unity in -batchmode mode. The default method name is BuildHelp.BuildIt_[TARGET]_[CONFIGURATION]. 
+    -b|--batch                    Runs Unity in -batchmode mode. The default method name is BuildHelp.BuildIt_[TARGET]_[CONFIGURATION].
                                   Use -e to set the method name, or -d/-r/-c to use the default name with a specific configuration.
                                   Implies -q
 
@@ -211,6 +216,40 @@ while (( "$#" )); do
     --nocache)
       CACHEVERSION=0
     ;;
+    -licr|--license-return)
+      QUIT=1
+      BATCH=1
+      LICENSE=0
+      LICRETURN=1
+      if [[ ${2:-0} == [1-9] ]]; then
+        LICENSE=$2
+        shift
+      fi
+    ;;
+    -lic|--license)
+      QUIT=1
+      BATCH=1
+      LICENSE=0
+      if [[ ${2:-0} == [1-9] ]]; then
+        LICENSE=$2
+        shift
+      fi
+    ;;
+    --license-save)
+      shift
+      license_set $@
+      exit 0
+    ;;
+    --license-list)
+      shift
+      license_list $@
+      exit 0
+    ;;
+    --license-remove)
+      shift
+      license_remove $@
+      exit 0
+    ;;
     -h|--help)
       help
       exit 0
@@ -222,7 +261,7 @@ while (( "$#" )); do
     # check if it's a platform flag, otherwise append it to the arguments
     if [[ ! -z ${PLATFORMS[$1]:-} ]]; then
       TARGET=${PLATFORMS[$1]}
-    elif [[ -d $1 && ! -d $PROJECTPATH ]]; then
+    elif [[ -d "$1" && ! -d "$PROJECTPATH" ]]; then
       PROJECTPATH=$(cd $1 && pwd)
     else
       ARGS="$ARGS$(echo $1|xargs) "
@@ -233,7 +272,7 @@ while (( "$#" )); do
 done
 
 if [[ ! -d $PROJECTPATH ]]; then
-  $PROJECTPATH="$DIR"
+  PROJECTPATH="$DIR"
 fi
 
 if [[ x"$OS" == x"Windows" ]]; then
@@ -274,7 +313,7 @@ if [[ x"${UNITYPATH}" == x"" ]]; then
       echo "Error: No Unity version detected in project." >&2
       echo "Set which Unity to use with -v" >&2
       usage
-      exit -1 
+      exit -1
     fi
   else
     if [[ ! -d "${BASEUNITYPATH}/${UNITYVERSION}" && -d "${BASEUNITYPATH}/${UNITYVERSION}f1" ]]; then
@@ -290,7 +329,7 @@ if [[ x"${UNITYPATH}" == x"" ]]; then
     echo "Error: Unity not found at ${BASEUNITYPATH}/${UNITYVERSION}" >&2
     echo "Install Unity v$UNITYVERSION or use a different version with -v" >&2
     usage
-    exit -1 
+    exit -1
   fi
 
 
@@ -387,13 +426,64 @@ fi
 
 UNITY_ARGS="${UNITY_ARGS} ${ARGS}"
 
+if [[ x"$LICENSE" != x"" ]]; then
+
+  if [[ $LICENSE != [1-9] ]]; then
+
+    local action=""
+
+    if [[ x"$LICRETURN" == x"1" ]]; then
+      action="return? If they all share the same credentials, pick any."
+    else
+      action="switch to?"
+    fi
+
+    echo ""
+    echo "Which license to you want to ${action}"
+    license_select
+  fi
+
+  declare -rA license=$(license_get $LICENSE)
+  UNITY_ARGS="${UNITY_ARGS} -nographics -username ${license['username']} -password ${license['password']}"
+
+  UNITY_ARGS_RETURN="${UNITY_ARGS} -returnlicense"
+
+  if [[ x"$LICRETURN" != x"1" ]]; then
+    UNITY_ARGS_LICENSE="${UNITY_ARGS} -serial ${license['license']}"
+
+    echo ""
+    echo "Returning license first..."
+    run_unity 1 $UNITY_ARGS_RETURN
+
+    echo ""
+    echo ""
+    echo "Activating new license..."
+    run_unity 1 $UNITY_ARGS_LICENSE
+  else
+    run_unity 1 $UNITY_ARGS_RETURN
+  fi
+
+  return 0
+fi
+
 
 echo "Opening project ${PROJECTPATH} with $UNITYVERSION : $TARGET"
-echo "\"$UNITYPATH/Unity\" -buildTarget $TARGET -projectPath \"$PROJECTPATH\" -logFile \"$LOGFILE\" $UNITY_ARGS &"
+run_unity 0 $UNITY_ARGS
 
-read -n1 -r -p "Press space to continue..." key
+}
 
-if [[ x"$key" == x'' ]]; then
+
+function run_unity {
+  local wait=$1
+  shift
+  local args=$@
+
+  echo "\"$UNITYPATH/Unity\" -buildTarget $TARGET -projectPath \"$PROJECTPATH\" -logFile \"$LOGFILE\" $args &"
+  read -n1 -r -p "Press space to continue..." key
+
+  if [[ x"$key" != x'' ]]; then
+    return
+  fi
 
   SUBFILENAME=$( $DATE +%Y%m%d-%H%M%S )
 
@@ -401,10 +491,510 @@ if [[ x"$key" == x'' ]]; then
       $CP "$LOGFILE" "$LOGFOLDER/Editor_$SUBFILENAME.log"
   fi
 
-  "$UNITYPATH/Unity" -buildTarget $TARGET -projectPath "$PROJECTPATH" -logFile "$LOGFILE" $UNITY_ARGS &
+  { set +eu; } 2>/dev/null
 
-fi
+  if [[ $wait == 1 ]]; then
+    $"$UNITYPATH/Unity" -buildTarget $TARGET -projectPath "$PROJECTPATH" -logFile "$LOGFILE" $args || true
+  else
+    "$UNITYPATH/Unity" -buildTarget $TARGET -projectPath "$PROJECTPATH" -logFile "$LOGFILE" $args &
+  fi
+  { set -eu; } 2>/dev/null
+}
+
+
+
+
+
+
+# ======= HELPERS ========== #
+
+LIC_PLAT=(General Switch PS4 PS5 "Xbox One" "Xbox S/X")
+
+function license_select {
+  if [[ ! -f ~/.spoiledcat/licenses.yaml ]]; then
+    echo "There are no configured license"
+    return 0
+  fi
+  eval $(parse_yaml ~/.spoiledcat/licenses.yaml "UL_")
+  if [[ -z ${UL_licenses_:-} ]]; then
+    echo "There are no configured license"
+    return 0
+  fi
+
+  declare -A licenses
+  eval $(load_licenses "licenses" ${UL_licenses_})
+  declare -a selections=()
+  local i=0 j=0
+  for key in "${licenses[@]}"; do
+    i=$((i+1))
+    local entry=(${key//◆/ })
+    echo "$i) ${entry[0]} => ${entry[3]}"
+    for j in "${!LIC_PLAT[@]}"; do
+      if [[ ${entry[0]} == ${LIC_PLAT[$j]} ]];then
+        selections[$i]=$((j+1))
+      fi
+    done
+
+  done
+
+  local selection=
+  read -r selection
+  if [[ ${selection:-} == [1-9] ]]; then
+      LICENSE=${selections[$selection]}
+  fi
+}
+
+function license_get {
+  local key=$1
+  key=$((key-1))
+
+  if [[ ! -f ~/.spoiledcat/licenses.yaml ]]; then
+    echo "There are no configured license"
+    return 0
+  fi
+  eval $(parse_yaml ~/.spoiledcat/licenses.yaml "UL_")
+  if [[ -z ${UL_licenses_:-} ]]; then
+    echo "There are no configured license"
+    return 0
+  fi
+
+  declare -A licenses
+  eval $(load_licenses "licenses" ${UL_licenses_})
+
+  local plat=${LIC_PLAT[$key]}
+
+  local i=0
+  for key in "${licenses[@]}"; do
+    i=$((i+1))
+    local entry=(${key//◆/ })
+    if [[ ${entry[0]} == $plat ]]; then
+      printf '(
+        [username]=%q
+        [password]=%q
+        [license]=%q
+      )' "${entry[@]:1}"
+    fi
+  done
+}
+
+
+function license_set {
+
+  cat << EOF
+This will store a license key so you can switch licenses with the --license option, for the given platform.
+Note: Unity requires passing the username, password and license key on the command line as plain text arguments in order to switch licenses.
+The values set here are stored in plaintext in ~/.spoiledcat/licenses.yaml
+EOF
+
+  local continue
+  echo ""
+  read -n1 -r -p 'Continue? (Enter or Space to continue, or any other key to quit):' continue
+
+  if [[ ! -z "$continue" ]]; then
+    echo ""
+    echo "Exiting"
+    return
+  fi
+
+
+  local platform
+  local user
+  local pwd
+  local license
+
+  cat << EOF
+
+Platform for this key:
+EOF
+
+  local i=0
+
+  for key in "${!LIC_PLAT[@]}"; do
+    i=$((i+1))
+    cat << EOF
+$i) ${LIC_PLAT[$key]}
+EOF
+  done
+
+  local selection=
+  read -r -p "Which selection? " selection
+
+  if [[ ${selection:-} != ?(-)+([0-9]) ]]; then
+    echo ""
+    echo "Exiting"
+    return
+  fi
+  selection=$((selection-1))
+
+  if [[ -z ${LIC_PLAT[$selection]:-} ]] ; then
+    echo ""
+    echo "Exiting"
+    return
+  fi
+
+  local platform=${LIC_PLAT[$selection]}
+  { set -u; } 2>/dev/null
+
+  echo ""
+  echo "Platform selected: $platform"
+
+  echo ""
+  read -r -p "Unity username: " username
+  read -r -s -p "Unity password: " password
+  echo ""
+  read -r -p "Unity license key: " license
+  echo ""
+
+  $MKDIR ~/.spoiledcat
+  if [[ -f ~/.spoiledcat/licenses.yaml ]]; then
+    eval $(parse_yaml ~/.spoiledcat/licenses.yaml "UL_")
+
+    if [[ -z ${UL_licenses_:-} ]]; then
+      local entry=$(format_license_entry $platform $username $password $license)
+      cat > ~/.spoiledcat/licenses.yaml << EOF
+licenses:
+${entry}
+EOF
+    else
+      lic_add_or_update $platform $username $password $license ${UL_licenses_}
+    fi
+  fi
+}
+
+function license_list() {
+  if [[ ! -f ~/.spoiledcat/licenses.yaml ]]; then
+    echo "There are no configured license"
+    return 0
+  fi
+
+  eval $(parse_yaml ~/.spoiledcat/licenses.yaml "UL_")
+
+  if [[ -z ${UL_licenses_:-} ]]; then
+    echo "There are no configured license"
+    return 0
+  fi
+
+  lic_list ${UL_licenses_}
+}
+
+function license_remove() {
+  if [[ ! -f ~/.spoiledcat/licenses.yaml ]]; then
+    echo "There are no configured license"
+    return 0
+  fi
+  eval $(parse_yaml ~/.spoiledcat/licenses.yaml "UL_")
+  if [[ -z ${UL_licenses_:-} ]]; then
+    echo "There are no configured license"
+    return 0
+  fi
+
+  declare -a licenses
+  licenses=
+  load_licenses "licenses" ${UL_licenses_}
+
+  cat <<EOF
+Select the key to remove:
+EOF
+
+  local i=0
+  for key in "${licenses[@]}"; do
+    i=$((i+1))
+    local entry=(${key//◆/ })
+    echo "$i) ${entry[0]} => ${entry[3]}"
+  done
+
+  local selection=
+  read -r selection
+
+  if [[ ${selection:-} == [1-9] ]]; then
+    selection=$((selection-1))
+    local entry=${licenses[$selection]}
+    entry=(${key//◆/ })
+    entry=${entry[0]}
+    echo "Removing $entry"
+    lic_remove $entry
+  fi
+}
+
+function load_licenses() {
+  local thing=$1
+  shift
+  while (( "$#" )); do
+    var="${1}platform"
+    local platform="${!var}"
+    var="${1}username"
+    local username="${!var}"
+    var="${1}password"
+    local password="${!var}"
+    var="${1}license"
+    local license="${!var}"
+    shift
+    printf '%q[%q]="%q◆%q◆%q◆%q";' "$thing" "$platform" "$platform" "$username" "$password" "$license"
+  done
+}
+
+function lic_list() {
+  while (( "$#" )); do
+    var="${1}platform"
+    local platform="${!var}"
+    var="${1}license"
+    local license="${!var}"
+    shift
+    echo "$platform => $license"
+  done
+}
+
+
+function lic_remove() {
+  local newplat=$1
+  shift
+
+  local yaml=""
+  while (( "$#" )); do
+    var="${1}platform"
+    local platform="${!var}"
+    var="${1}username"
+    local username="${!var}"
+    var="${1}password"
+    local password="${!var}"
+    var="${1}license"
+    local license="${!var}"
+    shift
+
+    if [[ $platform == $newplat ]]; then
+      continue
+    fi
+
+    local entry=$(format_license_entry $platform $username $password $license)
+    yaml="${yaml}${entry}"
+
+    shift
+  done
+
+  cat > ~/.spoiledcat/licenses.yaml << EOF
+licenses:
+${yaml}
+EOF
 
 }
+
+function lic_add_or_update() {
+  local newplat=$1
+  shift
+  local newuser=$1
+  shift
+  local newpwd=$1
+  shift
+  local newkey=$1
+  shift
+
+  local yaml=""
+  local found=
+
+  while (( "$#" )); do
+    var="${1}platform"
+    local platform="${!var}"
+    var="${1}username"
+    local username="${!var}"
+    var="${1}password"
+    local password="${!var}"
+    var="${1}license"
+    local license="${!var}"
+    shift
+
+    if [[ $platform == $newplat ]]; then
+      found=1
+      username=$newuser
+      password=$newpwd
+      license=$newkey
+    fi
+    local entry=$(format_license_entry $platform $username $password $license)
+    yaml=$(cat <<EOF
+${yaml}
+${entry}
+EOF
+)
+  done
+
+  if [[ -z $found ]]; then
+    local entry=$(format_license_entry $newplat $newuser $newpwd $newkey)
+    yaml=$(cat <<EOF
+${yaml}
+${entry}
+EOF
+)
+  fi
+
+  cat > ~/.spoiledcat/licenses.yaml << EOF
+licenses:
+${yaml}
+EOF
+
+}
+
+function format_license_entry() {
+  local platform=$1
+  shift
+  local username=$1
+  shift
+  local password=$1
+  shift
+  local license=$1
+  shift
+  cat <<EOF
+  - platform: ${platform}
+    username: ${username}
+    password: ${password}
+    license: ${license}
+EOF
+}
+
+
+# source: https://github.com/mrbaseman/parse_yaml.git
+
+function parse_yaml {
+   local prefix=${2:-}
+   local separator=${3:-_}
+
+   local indexfix
+   # Detect awk flavor
+   if awk --version 2>&1 | grep -q "GNU Awk" ; then
+      # GNU Awk detected
+      indexfix=-1
+   elif awk -Wv 2>&1 | grep -q "mawk" ; then
+      # mawk detected
+      indexfix=0
+   fi
+
+   local s='[[:space:]]*' sm='[ \t]*' w='[a-zA-Z0-9_]*' fs=$(echo @|tr @ '\034') i='  '
+   cat $1 | \
+   awk -F$fs "{multi=0;
+       if(match(\$0,/$sm\|$sm$/)){multi=1; sub(/$sm\|$sm$/,\"\");}
+       if(match(\$0,/$sm>$sm$/)){multi=2; sub(/$sm>$sm$/,\"\");}
+       while(multi>0){
+           str=\$0; gsub(/^$sm/,\"\", str);
+           indent=index(\$0,str);
+           indentstr=substr(\$0, 0, indent+$indexfix) \"$i\";
+           obuf=\$0;
+           getline;
+           while(index(\$0,indentstr)){
+               obuf=obuf substr(\$0, length(indentstr)+1);
+               if (multi==1){obuf=obuf \"\\\\n\";}
+               if (multi==2){
+                   if(match(\$0,/^$sm$/))
+                       obuf=obuf \"\\\\n\";
+                       else obuf=obuf \" \";
+               }
+               getline;
+           }
+           sub(/$sm$/,\"\",obuf);
+           print obuf;
+           multi=0;
+           if(match(\$0,/$sm\|$sm$/)){multi=1; sub(/$sm\|$sm$/,\"\");}
+           if(match(\$0,/$sm>$sm$/)){multi=2; sub(/$sm>$sm$/,\"\");}
+       }
+   print}" | \
+   sed  -e "s|^\($s\)?|\1-|" \
+       -ne "s|^$s#.*||;s|$s#[^\"']*$||;s|^\([^\"'#]*\)#.*|\1|;t1;t;:1;s|^$s\$||;t2;p;:2;d" | \
+   sed -ne "s|,$s\]$s\$|]|" \
+        -e ":1;s|^\($s\)\($w\)$s:$s\(&$w\)\?$s\[$s\(.*\)$s,$s\(.*\)$s\]|\1\2: \3[\4]\n\1$i- \5|;t1" \
+        -e "s|^\($s\)\($w\)$s:$s\(&$w\)\?$s\[$s\(.*\)$s\]|\1\2: \3\n\1$i- \4|;" \
+        -e ":2;s|^\($s\)-$s\[$s\(.*\)$s,$s\(.*\)$s\]|\1- [\2]\n\1$i- \3|;t2" \
+        -e "s|^\($s\)-$s\[$s\(.*\)$s\]|\1-\n\1$i- \2|;p" | \
+   sed -ne "s|,$s}$s\$|}|" \
+        -e ":1;s|^\($s\)-$s{$s\(.*\)$s,$s\($w\)$s:$s\(.*\)$s}|\1- {\2}\n\1$i\3: \4|;t1" \
+        -e "s|^\($s\)-$s{$s\(.*\)$s}|\1-\n\1$i\2|;" \
+        -e ":2;s|^\($s\)\($w\)$s:$s\(&$w\)\?$s{$s\(.*\)$s,$s\($w\)$s:$s\(.*\)$s}|\1\2: \3 {\4}\n\1$i\5: \6|;t2" \
+        -e "s|^\($s\)\($w\)$s:$s\(&$w\)\?$s{$s\(.*\)$s}|\1\2: \3\n\1$i\4|;p" | \
+   sed  -e "s|^\($s\)\($w\)$s:$s\(&$w\)\(.*\)|\1\2:\4\n\3|" \
+        -e "s|^\($s\)-$s\(&$w\)\(.*\)|\1- \3\n\2|" | \
+   sed -ne "s|^\($s\):|\1|" \
+        -e "s|^\($s\)\(---\)\($s\)||" \
+        -e "s|^\($s\)\(\.\.\.\)\($s\)||" \
+        -e "s|^\($s\)-$s[\"']\(.*\)[\"']$s\$|\1$fs$fs\2|p;t" \
+        -e "s|^\($s\)\($w\)$s:$s[\"']\(.*\)[\"']$s\$|\1$fs\2$fs\3|p;t" \
+        -e "s|^\($s\)-$s\(.*\)$s\$|\1$fs$fs\2|" \
+        -e "s|^\($s\)-\?\($w-\?$w\?\)$s:$s[\"']\?\(.*\)$s\$|\1$fs\2$fs\3|" \
+        -e "s|^\($s\)[\"']\?\([^&][^$fs]\+\)[\"']$s\$|\1$fs$fs$fs\2|" \
+        -e "s|^\($s\)[\"']\?\([^&][^$fs]\+\)$s\$|\1$fs$fs$fs\2|" \
+        -e "s|$s\$||p" | \
+   awk -F$fs "{
+      gsub(/\t/,\"        \",\$1);
+      if(NF>3){if(value!=\"\"){value = value \" \";}value = value  \$4;}
+      else {
+        if(match(\$1,/^&/)){anchor[substr(\$1,2)]=full_vn;getline};
+        indent = length(\$1)/length(\"$i\");
+        vname[indent] = \$2;
+        value= \$3;
+        for (i in vname) {if (i > indent) {delete vname[i]; idx[i]=0}}
+        if(length(\$2)== 0){  vname[indent]= ++idx[indent] };
+        vn=\"\"; for (i=0; i<indent; i++) { vn=(vn)(vname[i])(\"$separator\")}
+        vn=\"$prefix\" vn;
+        full_vn=vn vname[indent];
+        if(vn==\"$prefix\")vn=\"$prefix$separator\";
+        if(vn==\"_\")vn=\"__\";
+      }
+      assignment[full_vn]=value;
+      if(!match(assignment[vn], full_vn))assignment[vn]=assignment[vn] \" \" full_vn;
+      if(match(value,/^\*/)){
+         ref=anchor[substr(value,2)];
+         if(length(ref)==0){
+            data[full_vn]=value;
+           #printf(\"%s=\\\"%s\\\"\n\", full_vn, value);
+         } else {
+           for(val in assignment){
+              if((length(ref)>0)&&index(val, ref)==1){
+                 tmpval=assignment[val];
+                 sub(ref,full_vn,val);
+                 if(match(val,\"$separator\$\")){
+                    gsub(ref,full_vn,tmpval);
+                 } else if (length(tmpval) > 0) {
+                    #printf(\"%s=\\\"%s\\\"\n\", val, tmpval);
+                    data[val]=tmpval;
+                 }
+                 assignment[val]=tmpval;
+              }
+           }
+         }
+      } else if (length(value) > 0) {
+         if (match(value,/:/)){
+            sep=\":\";
+            vn=substr(value,0,index(value,sep)-1);
+            value=substr(value,index(value,sep)+1);
+            gsub(/^[ \t\r\n]+/, \"\",value);
+            base_vn=full_vn;
+            full_vn=full_vn \"$separator\" vn;
+            base_vn=base_vn \"$separator\";
+            #printf(\"%s=\\\"%s\\\"\n\", full_vn, value);
+            data[full_vn]=value;
+            #if(!match(assignment[base_vn], full_vn))assignment[base_vn]=assignment[base_vn] \" \" full_vn;
+         } else {
+            #printf(\"%s=\\\"%s\\\"\n\", full_vn, value);
+            data[full_vn]=value;
+         }
+      }
+   }END{
+      for(val in data){
+         printf(\"%s=\\\"%s\\\"\n\", val, data[val]);
+         value=val
+         a=gsub(/_[a-zA-Z0-9]+$/,\"\",val);
+         key=val \"$separator\"
+         if (!match(keys[key], value))keys[key]=keys[key] \" \" value;
+         while(a>0) {
+            value=val
+            a=gsub(/_[a-zA-Z0-9]+$/,\"\",val);
+            ix=index(val,\"$separator\");
+            if (ix>=0) {
+               key=val \"$separator\"
+               if (!match(keys[key], value))keys[key]=keys[key] \" \" value \"$separator\";
+            }
+         }
+      }
+      for(key in keys) {
+         printf(\"%s=\\\"%s\\\"\n\", key, keys[key]);
+      }
+   }"
+}
+
 
 main "$@"
