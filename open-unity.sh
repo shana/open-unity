@@ -463,10 +463,7 @@ if [[ x"$LICENSE" != x"" || x"$LICRETURN" == x"1" ]]; then
   else
     echo ""
     echo ""
-    echo "Activating new license... (don't worry about batchmode failure messages)"
-
-    UNITY_ARGS_LICENSE="${UNITY_ARGS_LICENSE} -serial ${license['license']}"
-    run_unity 1 $UNITY_ARGS_LICENSE
+    UNITY_ARGS="${UNITY_ARGS} -username ${license['username']} -password ${license['password']} -serial ${license['license']}"
   fi
 fi
 
