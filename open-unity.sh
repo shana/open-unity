@@ -217,9 +217,7 @@ while (( "$#" )); do
       CACHEVERSION=0
     ;;
     -licr|--license-return)
-      QUIT=1
-      BATCH=1
-      LICENSE=0
+      LICENSE=
       LICRETURN=1
       if [[ ${2:-0} == [1-9] ]]; then
         LICENSE=$2
@@ -227,9 +225,8 @@ while (( "$#" )); do
       fi
     ;;
     -lic|--license)
-      QUIT=1
-      BATCH=1
       LICENSE=0
+      LICRETURN=1
       if [[ ${2:-0} == [1-9] ]]; then
         LICENSE=$2
         shift
@@ -415,7 +412,6 @@ if [[ x"$BATCH" == x"1" ]]; then
   UNITY_ARGS="${UNITY_ARGS} -batchmode"
 fi
 
-
 if [[ x"$QUIT" == x"1" ]]; then
   UNITY_ARGS="${UNITY_ARGS} -quit"
 fi
@@ -424,15 +420,23 @@ if [[ x"$METHOD" != x"" ]]; then
   UNITY_ARGS="${UNITY_ARGS} -executeMethod ${METHOD}"
 fi
 
+LOGFILE=$(printf %q "$LOGFILE")
+UNITY_ARGS="${UNITY_ARGS} -logFile $LOGFILE"
+
 UNITY_ARGS="${UNITY_ARGS} ${ARGS}"
 
-if [[ x"$LICENSE" != x"" ]]; then
+if [[ x"$LICENSE" != x"" || x"$LICRETURN" == x"1" ]]; then
+
+  local onlyreturn=0
+
+  if [[ x"$LICENSE" == x"" ]]; then
+    onlyreturn=1
+  fi
 
   if [[ $LICENSE != [1-9] ]]; then
 
     local action=""
-
-    if [[ x"$LICRETURN" == x"1" ]]; then
+    if [[ $onlyreturn == 1 ]]; then
       action="return? If they all share the same credentials, pick any."
     else
       action="switch to?"
@@ -444,41 +448,42 @@ if [[ x"$LICENSE" != x"" ]]; then
   fi
 
   declare -rA license=$(license_get $LICENSE)
-  UNITY_ARGS="${UNITY_ARGS} -nographics -username ${license['username']} -password ${license['password']}"
+  UNITY_ARGS_LICENSE="${UNITY_ARGS} -batchmode -quit -projectPath $TMPDIR -nographics -username ${license['username']} -password ${license['password']}"
 
-  UNITY_ARGS_RETURN="${UNITY_ARGS} -returnlicense"
-
-  if [[ x"$LICRETURN" != x"1" ]]; then
-    UNITY_ARGS_LICENSE="${UNITY_ARGS} -serial ${license['license']}"
-
+  if [[ x"$LICRETURN" == x"1" ]]; then
     echo ""
     echo "Returning license first..."
-    run_unity 1 $UNITY_ARGS_RETURN
 
-    echo ""
-    echo ""
-    echo "Activating new license..."
-    run_unity 1 $UNITY_ARGS_LICENSE
-  else
+    UNITY_ARGS_RETURN="${UNITY_ARGS_LICENSE} -returnlicense"
     run_unity 1 $UNITY_ARGS_RETURN
   fi
 
-  return 0
+  if [[ $onlyreturn == 1 ]]; then
+    return 0
+  else
+    echo ""
+    echo ""
+    echo "Activating new license... (don't worry about batchmode failure messages)"
+
+    UNITY_ARGS_LICENSE="${UNITY_ARGS_LICENSE} -serial ${license['license']}"
+    run_unity 1 $UNITY_ARGS_LICENSE
+  fi
 fi
 
+PROJECTPATH=$(printf %q "$PROJECTPATH")
+UNITY_ARGS="${UNITY_ARGS} -buildTarget $TARGET -projectPath $PROJECTPATH ${ARGS}"
 
 echo "Opening project ${PROJECTPATH} with $UNITYVERSION : $TARGET"
 run_unity 0 $UNITY_ARGS
 
 }
 
-
 function run_unity {
   local wait=$1
   shift
   local args=$@
 
-  echo "\"$UNITYPATH/Unity\" -buildTarget $TARGET -projectPath \"$PROJECTPATH\" -logFile \"$LOGFILE\" $args &"
+  echo "\"$UNITYPATH/Unity\" $args"
   read -n1 -r -p "Press space to continue..." key
 
   if [[ x"$key" != x'' ]]; then
@@ -491,14 +496,16 @@ function run_unity {
       $CP "$LOGFILE" "$LOGFOLDER/Editor_$SUBFILENAME.log"
   fi
 
-  { set +eu; } 2>/dev/null
-
+  { set +e; } 2>/dev/null
   if [[ $wait == 1 ]]; then
-    $"$UNITYPATH/Unity" -buildTarget $TARGET -projectPath "$PROJECTPATH" -logFile "$LOGFILE" $args || true
+    $"$UNITYPATH/Unity" $args
   else
-    "$UNITYPATH/Unity" -buildTarget $TARGET -projectPath "$PROJECTPATH" -logFile "$LOGFILE" $args &
+    "$UNITYPATH/Unity" $args &
   fi
-  { set -eu; } 2>/dev/null
+  { set -e; } 2>/dev/null
+
+  echo ""
+  return 0
 }
 
 
