@@ -59,25 +59,6 @@ if [[ x"$OS" == x"Windows" ]]; then
   BIN2TXT="${BIN2TXT}.exe"
 fi
 
-declare -A PLATFORMS
-PLATFORMS=(\
-    [2]=Mac [-m]=Mac [--mac]=Mac \
-    [5]=Win32 [--win32]=Win32 \
-    [9]=iOS [-i]=iOS [--mac]=iOS \
-    [13]=Android [-a]=Android [--android]=Android \
-    [19]=Win64 [-w]=Win64 [--windows]=Win64 \
-    [20]=WebGL [-g]=WebGL [--webgl]=WebGL \
-    [24]=Linux64 [-l]=Linux64 [--linux]=Linux64 \
-    [31]=PS4 [-s]=PS4 [--ps4]=PS4 \
-    [33]=XboxOne [-x]=XboxOne [--xbox]=XboxOne \
-    [37]=tvOS [--tvos]=tvOS \
-    [38]=Switch [-n]=Switch [--switch]=Switch \
-    [40]=Stadia [--stadia]=Stadia \
-    [42]=GameCoreScarlett [-xs]=GameCoreScarlett [--scarlett]=GameCoreScarlett [--xboxs]=GameCoreScarlett \
-    [43]=GameCoreXboxOne [-xx]=GameCoreXboxOne [--xbox1gdk]=GameCoreXboxOne \
-    [44]=PS5 [-5]=PS5 [--ps5]=PS5 \
-)
-declare -r PLATFORMS
 
 function usage_platforms() {
   cat << EOF
@@ -149,6 +130,13 @@ EOF
     --v1                          Use cache server v1
     --v2                          Use cache server v2 (accelerator)
     --nocache                     Don't add any cache server parameters
+
+    License management:
+    -lic|--license                Select license to use, returning the current one first.
+    -llist|--license-list         List configured licenses
+    -lset|--license-set           Configure a license
+    -lrem|--license-remove         Remove a configured license
+    -lret|--license-return        Return the current license
 EOF
 }
 
@@ -216,14 +204,6 @@ while (( "$#" )); do
     --nocache)
       CACHEVERSION=0
     ;;
-    -licr|--license-return)
-      LICENSE=
-      LICRETURN=1
-      if [[ ${2:-0} == [1-9] ]]; then
-        LICENSE=$2
-        shift
-      fi
-    ;;
     -lic|--license)
       LICENSE=0
       LICRETURN=1
@@ -232,20 +212,28 @@ while (( "$#" )); do
         shift
       fi
     ;;
-    --license-save)
+    -lset|--license-set)
       shift
       license_set $@
       exit 0
     ;;
-    --license-list)
+    -llist|--license-list)
       shift
       license_list $@
       exit 0
     ;;
-    --license-remove)
+    -lrem|--license-remove)
       shift
       license_remove $@
       exit 0
+    ;;
+    -lret|--license-return)
+      LICENSE=
+      LICRETURN=1
+      if [[ ${2:-0} == [1-9] ]]; then
+        LICENSE=$2
+        shift
+      fi
     ;;
     -h|--help)
       help
@@ -256,8 +244,9 @@ while (( "$#" )); do
     ;;
     *)
     # check if it's a platform flag, otherwise append it to the arguments
-    if [[ ! -z ${PLATFORMS[$1]:-} ]]; then
-      TARGET=${PLATFORMS[$1]}
+    local tmp=$(platforms "$1")
+    if [[ ! -z $tmp ]]; then
+      TARGET=$tmp
     elif [[ -d "$1" && ! -d "$PROJECTPATH" ]]; then
       PROJECTPATH=$(cd $1 && pwd)
     else
@@ -370,7 +359,7 @@ if [[ x"$TARGET" == x"" ]]; then
       ACTIVETARGET="$( $CAT "$BUILDSETTINGS" | $GREP "m_ActiveBuildTarget " | CUT -d' ' -f 2)"
       $RM -f "$BUILDSETTINGS" || true
 
-      TARGET=${PLATFORMS[$ACTIVETARGET]}
+      TARGET=$(platforms "$ACTIVETARGET")
 
       if [[ x"$TARGET" == x"" ]]; then
         echo "Error: Invalid target $ACTIVETARGET"
@@ -427,6 +416,16 @@ UNITY_ARGS="${UNITY_ARGS} ${ARGS}"
 
 if [[ x"$LICENSE" != x"" || x"$LICRETURN" == x"1" ]]; then
 
+  if [[ ! -f ~/.spoiledcat/licenses.yaml ]]; then
+    echo "There are no configured license"
+    return 0
+  fi
+  eval $(parse_yaml ~/.spoiledcat/licenses.yaml "UL_")
+  if [[ -z ${UL_licenses_:-} ]]; then
+    echo "There are no configured license"
+    return 0
+  fi
+
   local onlyreturn=0
 
   if [[ x"$LICENSE" == x"" ]]; then
@@ -447,8 +446,9 @@ if [[ x"$LICENSE" != x"" || x"$LICRETURN" == x"1" ]]; then
     license_select
   fi
 
-  declare -rA license=$(license_get $LICENSE)
-  UNITY_ARGS_LICENSE="${UNITY_ARGS} -batchmode -quit -projectPath $TMPDIR -nographics -username ${license['username']} -password ${license['password']}"
+  license=($(license_get $LICENSE))
+
+  UNITY_ARGS_LICENSE="${UNITY_ARGS} -batchmode -quit -projectPath $TMPDIR -nographics -username ${license[0]} -password ${license[1]}"
 
   if [[ x"$LICRETURN" == x"1" ]]; then
     echo ""
@@ -463,7 +463,7 @@ if [[ x"$LICENSE" != x"" || x"$LICRETURN" == x"1" ]]; then
   else
     echo ""
     echo ""
-    UNITY_ARGS="${UNITY_ARGS} -username ${license['username']} -password ${license['password']} -serial ${license['license']}"
+    UNITY_ARGS="${UNITY_ARGS} -username ${license[0]} -password ${license[1]} -serial ${license[2]}"
   fi
 fi
 
@@ -505,80 +505,55 @@ function run_unity {
   return 0
 }
 
-
-
-
-
-
 # ======= HELPERS ========== #
 
-LIC_PLAT=(General Switch PS4 PS5 "Xbox One" "Xbox S/X")
+
+function platforms() {
+  case $1 in
+    2|-m|--mac) echo 'Mac';;
+    5|--win32) echo 'Win32';;
+    9|-i|--mac) echo 'iOS';;
+    13|-a|--android) echo 'Android';;
+    19|-w|--windows) echo 'Win64';;
+    20|-g|--webgl) echo 'WebGL';;
+    24|-l|--linux) echo 'Linux64';;
+    31|-s|--ps4) echo 'PS4';;
+    33|-x|--xbox) echo 'XboxOne';;
+    37|--tvos) echo 'tvOS';;
+    38|-n|--switch) echo 'Switch';;
+    40|--stadia) echo 'Stadia';;
+    42|-xs|--scarlett|--xboxs) echo 'GameCoreScarlett';;
+    43|-xx|--xbox1gdk) echo 'GameCoreXboxOne';;
+    44|-5|--ps5) echo 'PS5';;
+    *) echo '';;
+  esac
+}
+
+LIC_PLAT=("" General Switch PS4 PS5 "Xbox One" "Xbox S/X")
 
 function license_select {
-  if [[ ! -f ~/.spoiledcat/licenses.yaml ]]; then
-    echo "There are no configured license"
-    return 0
-  fi
-  eval $(parse_yaml ~/.spoiledcat/licenses.yaml "UL_")
-  if [[ -z ${UL_licenses_:-} ]]; then
-    echo "There are no configured license"
-    return 0
-  fi
+  licensecount=(${UL_licenses_#})
+  licensecount=${#licensecount[@]}
 
-  declare -A licenses
-  eval $(load_licenses "licenses" ${UL_licenses_})
-  declare -a selections=()
-  local i=0 j=0
-  for key in "${licenses[@]}"; do
-    i=$((i+1))
-    local entry=(${key//◆/ })
-    echo "$i) ${entry[0]} => ${entry[3]}"
-    for j in "${!LIC_PLAT[@]}"; do
-      if [[ ${entry[0]} == ${LIC_PLAT[$j]} ]];then
-        selections[$i]=$((j+1))
-      fi
-    done
-
+  for i in `seq 1 $licensecount`; do
+    local plat="UL_licenses_${i}_platform"
+    local license="UL_licenses_${i}_license"
+    echo "$i) ${!plat} => ${!license}"
   done
 
   local selection=
   read -r selection
   if [[ ${selection:-} == [1-9] ]]; then
-      LICENSE=${selections[$selection]}
+      LICENSE=$selection
   fi
 }
 
 function license_get {
-  local key=$1
-  key=$((key-1))
-
-  if [[ ! -f ~/.spoiledcat/licenses.yaml ]]; then
-    echo "There are no configured license"
-    return 0
-  fi
-  eval $(parse_yaml ~/.spoiledcat/licenses.yaml "UL_")
-  if [[ -z ${UL_licenses_:-} ]]; then
-    echo "There are no configured license"
-    return 0
-  fi
-
-  declare -A licenses
-  eval $(load_licenses "licenses" ${UL_licenses_})
-
-  local plat=${LIC_PLAT[$key]}
-
-  local i=0
-  for key in "${licenses[@]}"; do
-    i=$((i+1))
-    local entry=(${key//◆/ })
-    if [[ ${entry[0]} == $plat ]]; then
-      printf '(
-        [username]=%q
-        [password]=%q
-        [license]=%q
-      )' "${entry[@]:1}"
-    fi
-  done
+  local platform="UL_licenses_${1}_platform"
+  local license="UL_licenses_${1}_license"
+  local username="UL_licenses_${1}_username"
+  local password="UL_licenses_${1}_password"
+  printf '"%q" "%q" "%q"' "${!username}" "${!password}" "${!license}"
 }
 
 
@@ -611,24 +586,22 @@ EOF
 Platform for this key:
 EOF
 
-  local i=0
-
-  for key in "${!LIC_PLAT[@]}"; do
-    i=$((i+1))
+  local count=${#LIC_PLAT[@]}
+  count=$((count-1))
+  for i in `seq 1 $count`; do
     cat << EOF
-$i) ${LIC_PLAT[$key]}
+$i) ${LIC_PLAT[$i]}
 EOF
   done
 
   local selection=
   read -r -p "Which selection? " selection
 
-  if [[ ${selection:-} != ?(-)+([0-9]) ]]; then
+  if [[ ${selection:-} != [1-9] ]]; then
     echo ""
     echo "Exiting"
     return
   fi
-  selection=$((selection-1))
 
   if [[ -z ${LIC_PLAT[$selection]:-} ]] ; then
     echo ""
@@ -654,13 +627,13 @@ EOF
     eval $(parse_yaml ~/.spoiledcat/licenses.yaml "UL_")
 
     if [[ -z ${UL_licenses_:-} ]]; then
-      local entry=$(format_license_entry $platform $username $password $license)
+      local entry=$(format_license_entry "$platform" "$username" "$password" "$license")
       cat > ~/.spoiledcat/licenses.yaml << EOF
 licenses:
 ${entry}
 EOF
     else
-      lic_add_or_update $platform $username $password $license ${UL_licenses_}
+      lic_add_or_update "$platform" "$username" "$password" "$license"
     fi
   fi
 }
@@ -678,7 +651,13 @@ function license_list() {
     return 0
   fi
 
-  lic_list ${UL_licenses_}
+  licensecount=(${UL_licenses_#})
+  licensecount=${#licensecount[@]}
+  for i in `seq 1 $licensecount`; do
+    local platform="UL_licenses_${i}_platform"
+    local license="UL_licenses_${i}_license"
+    echo "${!platform} => ${!license}"
+  done
 }
 
 function license_remove() {
@@ -692,87 +671,54 @@ function license_remove() {
     return 0
   fi
 
-  declare -a licenses
-  licenses=
-  load_licenses "licenses" ${UL_licenses_}
-
   cat <<EOF
 Select the key to remove:
 EOF
 
-  local i=0
-  for key in "${licenses[@]}"; do
-    i=$((i+1))
-    local entry=(${key//◆/ })
-    echo "$i) ${entry[0]} => ${entry[3]}"
+  licensecount=(${UL_licenses_#})
+  licensecount=${#licensecount[@]}
+  for i in `seq 1 $licensecount`; do
+    local platform="UL_licenses_${i}_platform"
+    local license="UL_licenses_${i}_license"
+    echo "$i) ${!platform} => ${!license}"
   done
 
   local selection=
   read -r selection
 
   if [[ ${selection:-} == [1-9] ]]; then
-    selection=$((selection-1))
-    local entry=${licenses[$selection]}
-    entry=(${key//◆/ })
-    entry=${entry[0]}
-    echo "Removing $entry"
-    lic_remove $entry
+    lic_remove $selection
   fi
 }
 
-function load_licenses() {
-  local thing=$1
-  shift
-  while (( "$#" )); do
-    var="${1}platform"
-    local platform="${!var}"
-    var="${1}username"
-    local username="${!var}"
-    var="${1}password"
-    local password="${!var}"
-    var="${1}license"
-    local license="${!var}"
-    shift
-    printf '%q[%q]="%q◆%q◆%q◆%q";' "$thing" "$platform" "$platform" "$username" "$password" "$license"
-  done
-}
-
-function lic_list() {
-  while (( "$#" )); do
-    var="${1}platform"
-    local platform="${!var}"
-    var="${1}license"
-    local license="${!var}"
-    shift
-    echo "$platform => $license"
-  done
-}
-
-
 function lic_remove() {
-  local newplat=$1
+  local index=$1
   shift
 
   local yaml=""
-  while (( "$#" )); do
-    var="${1}platform"
-    local platform="${!var}"
-    var="${1}username"
-    local username="${!var}"
-    var="${1}password"
-    local password="${!var}"
-    var="${1}license"
-    local license="${!var}"
-    shift
 
-    if [[ $platform == $newplat ]]; then
+  local licensecount=(${UL_licenses_#})
+  licensecount=${#licensecount[@]}
+  for i in `seq 1 $licensecount`; do
+    local platform="UL_licenses_${i}_platform"
+    platform=${!platform}
+    if [[ $i == $index ]]; then
+      echo "Removing $platform"
       continue
     fi
+    local username="UL_licenses_${i}_username"
+    username=${!username}
+    local password="UL_licenses_${i}_password"
+    password=${!password}
+    local license="UL_licenses_${i}_license"
+    license=${!license}
 
-    local entry=$(format_license_entry $platform $username $password $license)
-    yaml="${yaml}${entry}"
-
-    shift
+    local entry=$(format_license_entry "$platform" "$username" "$password" "$license")
+    yaml=$(cat <<EOF
+${yaml}
+${entry}
+EOF
+)
   done
 
   cat > ~/.spoiledcat/licenses.yaml << EOF
@@ -795,24 +741,25 @@ function lic_add_or_update() {
   local yaml=""
   local found=
 
-  while (( "$#" )); do
-    var="${1}platform"
-    local platform="${!var}"
-    var="${1}username"
-    local username="${!var}"
-    var="${1}password"
-    local password="${!var}"
-    var="${1}license"
-    local license="${!var}"
-    shift
+  local licensecount=(${UL_licenses_#})
+  licensecount=${#licensecount[@]}
+  for i in `seq 1 $licensecount`; do
+    local platform="UL_licenses_${i}_platform"
+    platform=${!platform}
+    local username="UL_licenses_${i}_username"
+    username=${!username}
+    local password="UL_licenses_${i}_password"
+    password=${!password}
+    local license="UL_licenses_${i}_license"
+    license=${!license}
 
-    if [[ $platform == $newplat ]]; then
+    if [[ x"$platform" == x"$newplat" ]]; then
       found=1
       username=$newuser
       password=$newpwd
       license=$newkey
     fi
-    local entry=$(format_license_entry $platform $username $password $license)
+    local entry=$(format_license_entry "$platform" "$username" "$password" "$license")
     yaml=$(cat <<EOF
 ${yaml}
 ${entry}
@@ -821,7 +768,7 @@ EOF
   done
 
   if [[ -z $found ]]; then
-    local entry=$(format_license_entry $newplat $newuser $newpwd $newkey)
+    local entry=$(format_license_entry "$newplat" "$newuser" "$newpwd" "$newkey")
     yaml=$(cat <<EOF
 ${yaml}
 ${entry}
