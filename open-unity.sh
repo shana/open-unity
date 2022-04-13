@@ -453,17 +453,16 @@ if [[ x"$LICENSE" != x"" || x"$LICRETURN" == x"1" ]]; then
   if [[ x"$LICRETURN" == x"1" ]]; then
     echo ""
     echo "Returning license first..."
+    echo ""
 
-    UNITY_ARGS_RETURN="${UNITY_ARGS_LICENSE} -returnlicense"
-    run_unity 1 $UNITY_ARGS_RETURN
+    run_unity 1 ${UNITY_ARGS_LICENSE} -returnlicense
   fi
 
   if [[ $onlyreturn == 1 ]]; then
     return 0
   else
     echo ""
-    echo ""
-    UNITY_ARGS="${UNITY_ARGS} -username ${license[0]} -password ${license[1]} -serial ${license[2]}"
+    run_unity 1 ${UNITY_ARGS_LICENSE} -serial ${license[2]}
   fi
 fi
 
@@ -553,7 +552,7 @@ function license_get {
   local license="UL_licenses_${1}_license"
   local username="UL_licenses_${1}_username"
   local password="UL_licenses_${1}_password"
-  printf '"%q" "%q" "%q"' "${!username}" "${!password}" "${!license}"
+  printf '%q %q %q' "${!username}" "${!password}" "${!license}"
 }
 
 
