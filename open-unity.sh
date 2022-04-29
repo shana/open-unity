@@ -18,6 +18,8 @@ CACHEVERSION=2
 # folder where you stuff all your Unitys, pass in -u to set
 BASEUNITYPATH="/Applications/Unity/Hub/Editor"
 
+ISMAC=1
+ISWIN=
 HUBPATH=""
 OS="Mac"
 BIN=""
@@ -38,6 +40,8 @@ UNITYPATH=""
 
 if [[ -e "/c/" ]]; then
   OS="Windows"
+  ISMAC=
+  ISWIN=1
 fi
 
 if [[ x"$OS" == x"Windows" ]]; then
@@ -297,9 +301,25 @@ if [[ x"${UNITYPATH}" == x"" ]]; then
     else
       echo "" >&2
       echo "Error: No Unity version detected in project." >&2
-      echo "Set which Unity to use with -v" >&2
-      usage
-      exit -1
+      local available=$(ls $BASEUNITYPATH|grep -v Hub)
+      local availablecount=(${available#})
+      availablecount=${#availablecount[@]}
+      available=(${available})
+      availablecount=$((availablecount-1))
+      for i in `seq 0 $availablecount`; do
+        echo "$i) ${available[$i]}"
+      done
+
+      echo "Select a version, or enter to cancel"
+      local selection=
+      read -r selection
+      if [[ x"${selection:-}"x =~ ^x[1-9]+x$ ]]; then
+          UNITYVERSION=${available[selection]}
+      else
+        echo "Set which Unity to use with -v" >&2
+        usage
+        exit -1
+      fi
     fi
   else
     if [[ ! -d "${BASEUNITYPATH}/${UNITYVERSION}" && -d "${BASEUNITYPATH}/${UNITYVERSION}f1" ]]; then
@@ -362,27 +382,22 @@ if [[ x"$TARGET" == x"" ]]; then
       TARGET=$(platforms "$ACTIVETARGET")
 
       if [[ x"$TARGET" == x"" ]]; then
-        echo "Error: Invalid target $ACTIVETARGET"
+        echo "Error: Invalid target $ACTIVETARGET" >&2
+        usage
+        usage_platforms
         exit 1
       fi
-
-    else
-      echo "" >&2
-      echo "Error: Project has no active target, pass one of the platform flags to set one" >&2
-      usage
-      usage_platforms
-      exit 1
     fi
-
   fi
 fi
 
 if [[ x"$TARGET" == x"" ]]; then
   echo "" >&2
-  echo "Error: Project has no active target, pass one of the platform flags to set one" >&2
-  usage
-  usage_platforms
-  exit 1
+  local currentplat=-w
+  [[ ! -z $ISMAC ]] && currentplat=-m
+  TARGET=$(platforms "$currentplat")
+  echo "Project has no active target, defaulting to ${TARGET}" >&2
+  echo "Pass one of the platform flags to set a specific platform." >&2
 fi
 
 if [[ x"$BUILD" == x"1" && x"$METHOD" == x"" ]]; then
