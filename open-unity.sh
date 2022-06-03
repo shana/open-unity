@@ -254,7 +254,7 @@ while (( "$#" )); do
     elif [[ -d "$1" && ! -d "$PROJECTPATH" ]]; then
       PROJECTPATH=$(cd $1 && pwd)
     else
-      ARGS="$ARGS$(echo $1|xargs) "
+      ARGS="${ARGS}$(echo $1|xargs) "
     fi
     ;;
   esac
@@ -290,8 +290,14 @@ PROJECTPATH="$(echo "$PROJECTPATH" | $SED -E 's,/$,,')"
 if [[ ! -d "${PROJECTPATH}/Assets" ]]; then
   echo "" >&2
   echo "Error: Invalid path ${PROJECTPATH}" >&2
-  usage
-  exit 1
+  echo "Would you like to create a new project in ${PROJECTPATH}?"
+  read -n1 -r -p "Press y to create a new project in ${PROJECTPATH}, or any key to cancel..." key
+  if [[ x"$key" == x'y' ]]; then
+    $MKDIR "${PROJECTPATH}/Assets"
+  else
+    usage
+    exit 1
+  fi
 fi
 
 if [[ x"${UNITYPATH}" == x"" ]]; then
@@ -324,6 +330,9 @@ if [[ x"${UNITYPATH}" == x"" ]]; then
   else
     if [[ ! -d "${BASEUNITYPATH}/${UNITYVERSION}" && -d "${BASEUNITYPATH}/${UNITYVERSION}f1" ]]; then
       UNITYVERSION="${UNITYVERSION}f1"
+    fi
+    if [[ ! -d "${BASEUNITYPATH}/${UNITYVERSION}" && -d "${BASEUNITYPATH}/${UNITYVERSION}f2" ]]; then
+      UNITYVERSION="${UNITYVERSION}f2"
     fi
   fi
 
