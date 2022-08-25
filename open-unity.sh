@@ -147,7 +147,14 @@ EOF
 
 function main() {
 
+local ARGSONLY=0
 while (( "$#" )); do
+  if [[ x"$ARGSONLY" == x"1" ]]; then
+    ARGS="${ARGS} $1"
+    shift
+    continue
+  fi
+
   case "$1" in
     -d|--debug)
       CONFIGURATION="Dev"
@@ -243,6 +250,9 @@ while (( "$#" )); do
       help
       exit 0
     ;;
+    --args)
+      ARGSONLY=1
+    ;;
     --trace)
      { set -x; } 2>/dev/null
     ;;
@@ -254,7 +264,7 @@ while (( "$#" )); do
     elif [[ -d "$1" && ! -d "$PROJECTPATH" ]]; then
       PROJECTPATH=$(cd $1 && pwd)
     else
-      ARGS="${ARGS}$(echo $1|xargs) "
+      ARGS="${ARGS} $1"
     fi
     ;;
   esac
@@ -435,8 +445,6 @@ fi
 
 LOGFILE=$(printf %q "$LOGFILE")
 UNITY_ARGS="${UNITY_ARGS} -logFile $LOGFILE"
-
-UNITY_ARGS="${UNITY_ARGS} ${ARGS}"
 
 if [[ x"$LICENSE" != x"" || x"$LICRETURN" == x"1" ]]; then
 
