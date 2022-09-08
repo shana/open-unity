@@ -280,7 +280,7 @@ while (( "$#" )); do
     local tmp=$(platforms "$1")
     if [[ ! -z $tmp ]]; then
       TARGET=$tmp
-    elif [[ -d "$1" && ! -d "$PROJECTPATH" ]]; then
+    elif [[ -d "$1" && x"$PROJECTPATH" == x"" ]]; then
       PROJECTPATH=$(cd $1 && pwd)
     else
       ARGS="${ARGS} $1"
@@ -290,7 +290,7 @@ while (( "$#" )); do
   shift
 done
 
-if [[ ! -d $PROJECTPATH ]]; then
+if [[ x"$PROJECTPATH" == x"" ]]; then
   PROJECTPATH="$DIR"
 fi
 
