@@ -31,6 +31,9 @@ BATCH=0
 QUIT=0
 LICENSE=
 LICRETURN=0
+LISTVERSIONS=0
+SWITCHVERSION=0
+PRINT=0
 
 PROJECTPATH=
 TARGET=""
@@ -99,6 +102,9 @@ Usage:
 
     Use -h for a list of all the options.
     Use --trace to enable bash trace mode (see everything as it is executed)
+
+    -ov|--open-version            List all available Unity versions for selection and open the project with the selected version
+    -u [value]                    Path to directory where Unity versions are installed (default: $BASEUNITYPATH)
 EOF
 }
 
@@ -110,8 +116,12 @@ function help() {
     Options:
     -p|--path [value]             Project path relative to the current directory (optional, current directory by default)
     -v|--version [value]          Unity version (optional, autodetected by default from project settings)
+    -lv|--list-versions           List all available Unity versions
+    -ov|--open-version            List all available Unity versions for selection and open the project with the selected version
     -u [value]                    Path to directory where Unity versions are installed (default: $BASEUNITYPATH)
-    --unity                       Path to Unity executable
+    --unity                       Path to Unity.exe executable
+    --print                       Print the current version of Unity and the current build target that the project is set to.
+
 EOF
 
   usage_platforms
@@ -133,7 +143,7 @@ EOF
     -z|--cache [value]            IP or hostname of unity accelerator
     --v1                          Use cache server v1
     --v2                          Use cache server v2 (accelerator)
-    --nocache                     Don't add any cache server parameters
+    -k|--nocache                     Don't add any cache server parameters
 
     License management:
     -lic|--license                Select license to use, returning the current one first.
@@ -212,8 +222,17 @@ while (( "$#" )); do
     --v2)
       CACHEVERSION=2
     ;;
-    --nocache)
+    -k|--nocache)
       CACHEVERSION=0
+    ;;
+    -lv|--list-versions)
+      LISTVERSIONS=1
+    ;;
+    -ov|--open-version)
+      SWITCHVERSION=1
+    ;;
+    --print)
+      PRINT=1
     ;;
     -lic|--license)
       LICENSE=0
@@ -295,6 +314,11 @@ if [[ -f $HUBPATH ]]; then
   fi
 fi
 
+if [[ x"${LISTVERSIONS}" == x"1" ]]; then
+  unityversions
+  exit 0
+fi
+
 PROJECTPATH="$(echo "$PROJECTPATH" | $SED -E 's,/$,,')"
 
 if [[ ! -d "${PROJECTPATH}/Assets" ]]; then
@@ -310,6 +334,73 @@ if [[ ! -d "${PROJECTPATH}/Assets" ]]; then
   fi
 fi
 
+if [[ x"${SWITCHVERSION}" == x"1" ]]; then
+  unityversions
+  local available=$(ls "$BASEUNITYPATH"|grep -v Hub)
+  available=(${available})
+
+  echo "Select a version, or enter to cancel"
+  local selection=
+  read -r selection
+  if [[ x"${selection:-}"x =~ ^x[1-9]+x$ ]]; then
+      selection=$((selection-1))
+      UNITYVERSION=${available[selection]}
+  else
+    echo "Set which Unity to use with -v" >&2
+    usage
+    exit -1
+  fi
+fi
+
+# print data about the project and exit
+if [[ x"${PRINT}" == x"1" ]]; then
+  if [[ -f "$PROJECTPATH/ProjectSettings/ProjectVersion.txt" ]]; then
+    UNITYVERSION="$( $CAT "$PROJECTPATH/ProjectSettings/ProjectVersion.txt" | $GREP "m_EditorVersion:" | $CUT -d' ' -f 2)"
+  fi
+
+  local _latestunity=$(ls "$BASEUNITYPATH"|grep -v Hub|tail -n1)
+  UNITYPATH="${BASEUNITYPATH}/${_latestunity}"
+  if [[ x"$OS" == x"Mac" ]]; then
+    UNITYTOOLSPATH="$UNITYPATH/Unity.app/Contents/Tools"
+    UNITYPATH="$UNITYPATH/Unity.app/Contents/MacOS"
+  else
+    UNITYTOOLSPATH="$UNITYPATH/Editor/Data/Tools"
+    UNITYPATH="$UNITYPATH/Editor"
+  fi
+
+  EDITORUSERBUILDSETTINGS="$PROJECTPATH/Library/EditorUserBuildSettings.asset"
+  BUILDSETTINGS="$DIR/buildsettings.txt"
+  $RM -f "$BUILDSETTINGS" || true
+  TARGET="Not Set"
+
+  if [[ -e "$EDITORUSERBUILDSETTINGS" ]]; then
+
+    "$UNITYTOOLSPATH/$BIN2TXT" "$EDITORUSERBUILDSETTINGS" "$BUILDSETTINGS" || true
+
+    if [[ -e "$BUILDSETTINGS" ]]; then
+
+      ACTIVETARGET="$( $CAT "$BUILDSETTINGS" | $GREP "m_ActiveBuildTarget " | CUT -d' ' -f 2)"
+      $RM -f "$BUILDSETTINGS" || true
+
+      TARGET=$(platforms "$ACTIVETARGET")
+
+      if [[ x"$TARGET" == x"" ]]; then
+        TARGET=Unknown
+      fi
+    fi
+  fi
+
+  cat << EOF
+
+    Project: ${PROJECTPATH}
+    Unity version: ${UNITYVERSION}
+    Build Target: ${TARGET}
+EOF
+
+  exit 0
+fi
+
+
 if [[ x"${UNITYPATH}" == x"" ]]; then
   if [[ x"${UNITYVERSION}" == x"" ]]; then
     if [[ -f "$PROJECTPATH/ProjectSettings/ProjectVersion.txt" ]]; then
@@ -317,22 +408,18 @@ if [[ x"${UNITYPATH}" == x"" ]]; then
     else
       echo "" >&2
       echo "Error: No Unity version detected in project." >&2
-      local available=$(ls $BASEUNITYPATH|grep -v Hub)
-      local availablecount=(${available#})
-      availablecount=${#availablecount[@]}
+      unityversions
+      local available=$(ls "$BASEUNITYPATH"|grep -v Hub)
       available=(${available})
-      availablecount=$((availablecount-1))
-      for i in `seq 0 $availablecount`; do
-        echo "$i) ${available[$i]}"
-      done
 
       echo "Select a version, or enter to cancel"
       local selection=
       read -r selection
       if [[ x"${selection:-}"x =~ ^x[1-9]+x$ ]]; then
-          UNITYVERSION=${available[selection]}
+        selection=$((selection-1))
+        UNITYVERSION=${available[selection]}
       else
-        echo "Set which Unity to use with -v" >&2
+        echo "Set which Unity to use -v" >&2
         usage
         exit -1
       fi
@@ -344,6 +431,12 @@ if [[ x"${UNITYPATH}" == x"" ]]; then
     if [[ ! -d "${BASEUNITYPATH}/${UNITYVERSION}" && -d "${BASEUNITYPATH}/${UNITYVERSION}f2" ]]; then
       UNITYVERSION="${UNITYVERSION}f2"
     fi
+    if [[ ! -d "${BASEUNITYPATH}/${UNITYVERSION}" && -d "${BASEUNITYPATH}/${UNITYVERSION}f3" ]]; then
+      UNITYVERSION="${UNITYVERSION}f3"
+    fi
+    if [[ ! -d "${BASEUNITYPATH}/${UNITYVERSION}" && -d "${BASEUNITYPATH}/${UNITYVERSION}f4" ]]; then
+      UNITYVERSION="${UNITYVERSION}f4"
+    fi
   fi
 
   if [[ -d "${BASEUNITYPATH}/${UNITYVERSION}" ]]; then
@@ -352,7 +445,7 @@ if [[ x"${UNITYPATH}" == x"" ]]; then
   else
     echo "" >&2
     echo "Error: Unity not found at ${BASEUNITYPATH}/${UNITYVERSION}" >&2
-    echo "Install Unity v$UNITYVERSION or use a different version with -v" >&2
+    echo "Install Unity v$UNITYVERSION or use a different version with -ov or -v" >&2
     usage
     exit -1
   fi
@@ -538,6 +631,16 @@ function run_unity {
 
 # ======= HELPERS ========== #
 
+function unityversions() {
+  local available=$(ls "$BASEUNITYPATH"|grep -v Hub)
+  local availablecount=(${available#})
+  availablecount=${#availablecount[@]}
+  available=(${available})
+  availablecount=$((availablecount-1))
+  for i in `seq 0 $availablecount`; do
+  echo "$((i+1))) ${available[$i]}"
+  done
+}
 
 function platforms() {
   case $1 in
