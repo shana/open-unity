@@ -342,7 +342,7 @@ if [[ x"${SWITCHVERSION}" == x"1" ]]; then
   echo "Select a version, or enter to cancel"
   local selection=
   read -r selection
-  if [[ x"${selection:-}"x =~ ^x[1-9]+x$ ]]; then
+  if [[ x"${selection:-}"x =~ ^x[1-9]{1}[0-9]*x$ ]]; then
       selection=$((selection-1))
       UNITYVERSION=${available[selection]}
   else
@@ -415,7 +415,7 @@ if [[ x"${UNITYPATH}" == x"" ]]; then
       echo "Select a version, or enter to cancel"
       local selection=
       read -r selection
-      if [[ x"${selection:-}"x =~ ^x[1-9]+x$ ]]; then
+      if [[ x"${selection:-}"x =~ ^x[1-9]{1}[0-9]*x$ ]]; then
         selection=$((selection-1))
         UNITYVERSION=${available[selection]}
       else
