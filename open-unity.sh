@@ -64,6 +64,10 @@ BIN2TXT="binary2text"
 SED="sed"
 MKDIR="mkdir -p"
 
+if [[ -z ${TMPDIR:-} ]]; then
+  TMPDIR=/tmp
+fi
+
 if [[ x"$OS" == x"Windows" ]]; then
   BASEUNITYPATH="/c/Program Files/Unity/Hub/Editor"
   BIN2TXT="${BIN2TXT}.exe"
