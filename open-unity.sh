@@ -36,6 +36,7 @@ SWITCHVERSION=0
 PRINT=0
 SKIPPATHCHECK=0
 AUTOCONFIRM=0
+FOREGROUND=0
 
 PROJECTPATH=
 TARGET=""
@@ -273,6 +274,9 @@ while (( "$#" )); do
     ;;
     --auto-confirm)
       AUTOCONFIRM=1
+    ;;
+    --foreground)
+      FOREGROUND=1
     ;;
     -h|--help)
       help
@@ -606,7 +610,7 @@ PROJECTPATH=$(printf %q "$PROJECTPATH")
 UNITY_ARGS="${UNITY_ARGS} -buildTarget $TARGET -projectPath $PROJECTPATH ${ARGS}"
 
 echo "Opening project ${PROJECTPATH} with $UNITYVERSION : $TARGET"
-run_unity 0 $UNITY_ARGS
+run_unity $FOREGROUND $UNITY_ARGS
 
 }
 
