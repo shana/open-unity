@@ -34,6 +34,7 @@ LICRETURN=0
 LISTVERSIONS=0
 SWITCHVERSION=0
 PRINT=0
+SKIPPATHCHECK=0
 
 PROJECTPATH=
 TARGET=""
@@ -265,6 +266,10 @@ while (( "$#" )); do
         shift
       fi
     ;;
+    --no-project)
+      PROJECTPATH=$TMPDIR
+      SKIPPATHCHECK=1
+    ;;
     -h|--help)
       help
       exit 0
@@ -321,7 +326,7 @@ fi
 
 PROJECTPATH="$(echo "$PROJECTPATH" | $SED -E 's,/$,,')"
 
-if [[ ! -d "${PROJECTPATH}/Assets" ]]; then
+if [[ ! -d "${PROJECTPATH}/Assets" && $SKIPPATHCHECK != 1 ]]; then
   echo "" >&2
   echo "Error: Invalid path ${PROJECTPATH}" >&2
   echo "Would you like to create a new project in ${PROJECTPATH}?"
@@ -525,7 +530,7 @@ elif  [[ x"$CACHEVERSION" == x"2" ]]; then
 fi
 
 if [[ x"$BATCH" == x"1" ]]; then
-  UNITY_ARGS="${UNITY_ARGS} -batchmode"
+  UNITY_ARGS="${UNITY_ARGS} -batchmode -nographics"
 fi
 
 if [[ x"$QUIT" == x"1" ]]; then
@@ -539,8 +544,10 @@ fi
 LOGFILE=$(printf %q "$LOGFILE")
 UNITY_ARGS="${UNITY_ARGS} -logFile $LOGFILE"
 
-if [[ x"$LICENSE" != x"" || x"$LICRETURN" == x"1" ]]; then
 
+
+# do the license dance when the user has selected an existing configured license
+if [[ x"$LICENSE" != x"" || x"$LICRETURN" == x"1" ]]; then
   if [[ ! -f ~/.spoiledcat/licenses.yaml ]]; then
     echo "There are no configured license"
     return 0
