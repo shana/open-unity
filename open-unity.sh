@@ -35,6 +35,7 @@ LISTVERSIONS=0
 SWITCHVERSION=0
 PRINT=0
 SKIPPATHCHECK=0
+AUTOCONFIRM=0
 
 PROJECTPATH=
 TARGET=""
@@ -269,6 +270,9 @@ while (( "$#" )); do
     --no-project)
       PROJECTPATH=$TMPDIR
       SKIPPATHCHECK=1
+    ;;
+    --auto-confirm)
+      AUTOCONFIRM=1
     ;;
     -h|--help)
       help
@@ -612,10 +616,13 @@ function run_unity {
   local args=$@
 
   echo "\"$UNITYPATH/Unity\" $args"
-  read -n1 -r -p "Press space to continue..." key
 
-  if [[ x"$key" != x'' ]]; then
-    return
+  if [[ $AUTOCONFIRM != 1 ]]; then
+    read -n1 -r -p "Press space to continue..." key
+
+    if [[ x"$key" != x'' ]]; then
+      return
+    fi
   fi
 
   SUBFILENAME=$( $DATE +%Y%m%d-%H%M%S )
