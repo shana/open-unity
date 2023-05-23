@@ -118,51 +118,85 @@ EOF
 function help() {
   usage
 
-  cat << EOF
-
-    Options:
-    -p|--path [value]             Project path relative to the current directory (optional, current directory by default)
-    -v|--version [value]          Unity version (optional, autodetected by default from project settings)
-    -lv|--list-versions           List all available Unity versions
-    -ov|--open-version            List all available Unity versions for selection and open the project with the selected version
-    -u [value]                    Path to directory where Unity versions are installed (default: $BASEUNITYPATH)
-    --unity                       Path to Unity.exe executable
-    --print                       Print the current version of Unity and the current build target that the project is set to.
-
-EOF
-
   usage_platforms
 
   cat << EOF
 
+    General Options:
+    -p|--path [value]             Project path relative to the current directory (optional, current directory by default)
+    -v|--version [value]          Unity version (optional, autodetected by default from project settings)
+
+    -lv|--list-versions           List all available Unity versions
+    -ov|--open-version            List all available Unity versions for selection and open the project with the selected version
+
+    -u [value]                    Path to directory where Unity versions are installed (default: $BASEUNITYPATH)
+
+    --unity                       Path to Unity.exe/Unity.app executable
+
+    --print                       Print the current version of Unity and the current build target that the project is set to.
+
+    --no-project                  Run unity without passing in a project path, it uses a temporary path instead.
+                                  This is especially useful for switching licenses, where you don't want Unity
+                                  to spend time importing a project.
+                                  Unity will complain that the path doesn't contain a project, but the license
+                                  update runs before that, so you can ignore the errors.
+
+    -y|--auto-confirm             Don't ask for confirmation before running Unity
+    -f|--foreground               Run Unity in the foreground (off by default)
+
     Batch mode:
     -q|--quit                     Run Unity with -quit flag
-    -b|--batch                    Runs Unity in -batchmode mode. The default method name is BuildHelp.BuildIt_[TARGET]_[CONFIGURATION].
+    --no-quit                     Don't send the -q argument to Unity, even if other flags imply it.
+
+    -b|--batch                    Runs Unity in -batchmode mode. The default method name is BuildHelp.BuildIt_[TARGET]_[CONFIGURATION]
                                   Use -e to set the method name, or -d/-r/-c to use the default name with a specific configuration.
                                   Implies -q
 
+    -e|--method [value]           Run Unity by invoking a method and exiting. Implies -q.
     -d|--debug                    Used with -b, sets the method to BuildHelp.BuildIt_[TARGET]_Dev
     -r|--release                  Used with -b, sets the method to BuildHelp.BuildIt_[TARGET]_Release
-    -c|--configuration [value]    Used with -b, sets the method to BuildHelp.BuildIt_[TARGET]_[CONFIGURATION], where CONFIGURATION is what you set here.
-    -e|--method [value]           Run Unity by invoking a method and exiting. Implies -q.
+    -c|--configuration [value]    Used with -b, sets the method to BuildHelp.BuildIt_[TARGET]_[CONFIGURATION],
+                                  where CONFIGURATION is what you set here.
 
     Cache server:
     -z|--cache [value]            IP or hostname of unity accelerator
+    -k|--nocache                  Don't add any cache server parameters
     --v1                          Use cache server v1
     --v2                          Use cache server v2 (accelerator)
-    -k|--nocache                     Don't add any cache server parameters
 
     License management:
     -lic|--license                Select license to use, returning the current one first.
+                                  Run this with --no-project for switching licenses without opening a project.
+
     -llist|--license-list         List configured licenses
     -lset|--license-set           Configure a license
-    -lrem|--license-remove         Remove a configured license
+    -lrem|--license-remove        Remove a configured license
     -lret|--license-return        Return the current license
 EOF
 }
 
 
 function main() {
+
+if [[ x"$OS" == x"Windows" ]]; then
+  HUBPATH="$( echo ~/AppData/Roaming/UnityHub/ | xargs realpath )" || true
+else
+  HUBPATH="$( cd ~/Library/Application\ Support/UnityHub/ && pwd )" || true
+fi
+
+if [[ -d $HUBPATH ]]; then
+  HUBPATH="$HUBPATH/secondaryInstallPath.json"
+fi
+
+if [[ -f $HUBPATH ]]; then
+  tmp="$( $CAT "$HUBPATH" | $SED -E 's, ,\\ ,g' | $SED -E 's,",,g' )"
+  if [[ x"$tmp" != x"" ]]; then
+    BASEUNITYPATH="$tmp"
+    if [[ x"$OS" == x"Windows" ]]; then
+      BASEUNITYPATH="$( realpath $BASEUNITYPATH )"
+    fi
+  fi
+fi
 
 local ARGSONLY=0
 while (( "$#" )); do
@@ -276,10 +310,10 @@ while (( "$#" )); do
       PROJECTPATH=$TMPDIR
       SKIPPATHCHECK=1
     ;;
-    --auto-confirm)
+    -y|--auto-confirm)
       AUTOCONFIRM=1
     ;;
-    --foreground)
+    -f|--foreground)
       FOREGROUND=1
     ;;
     -h|--help)
@@ -307,33 +341,13 @@ while (( "$#" )); do
   shift
 done
 
-if [[ x"$PROJECTPATH" == x"" ]]; then
-  PROJECTPATH="$DIR"
-fi
-
-if [[ x"$OS" == x"Windows" ]]; then
-  HUBPATH="$( echo ~/AppData/Roaming/UnityHub/ | xargs realpath )" || true
-else
-  HUBPATH="$( cd ~/Library/Application\ Support/UnityHub/ && pwd )" || true
-fi
-
-if [[ -d $HUBPATH ]]; then
-  HUBPATH="$HUBPATH/secondaryInstallPath.json"
-fi
-
-if [[ -f $HUBPATH ]]; then
-  tmp="$( $CAT "$HUBPATH" | $SED -E 's, ,\\ ,g' | $SED -E 's,",,g' )"
-  if [[ x"$tmp" != x"" ]]; then
-    BASEUNITYPATH="$tmp"
-    if [[ x"$OS" == x"Windows" ]]; then
-      BASEUNITYPATH="$( realpath $BASEUNITYPATH )"
-    fi
-  fi
-fi
-
 if [[ x"${LISTVERSIONS}" == x"1" ]]; then
   unityversions
   exit 0
+fi
+
+if [[ x"$PROJECTPATH" == x"" ]]; then
+  PROJECTPATH="$DIR"
 fi
 
 PROJECTPATH="$(echo "$PROJECTPATH" | $SED -E 's,/$,,')"
