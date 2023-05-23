@@ -791,6 +791,12 @@ EOF
     else
       lic_add_or_update "$platform" "$username" "$password" "$license"
     fi
+  else
+    local entry=$(format_license_entry "$platform" "$username" "$password" "$license")
+    cat > ~/.spoiledcat/licenses.yaml << EOF
+licenses:
+${entry}
+EOF
   fi
 }
 
