@@ -682,7 +682,7 @@ function platforms() {
   case $1 in
     2|-m|--mac) echo 'Mac';;
     5|--win32) echo 'Win32';;
-    9|-i|--mac) echo 'iOS';;
+    9|-i|--ios) echo 'iOS';;
     13|-a|--android) echo 'Android';;
     19|-w|--windows) echo 'Win64';;
     20|-g|--webgl) echo 'WebGL';;
