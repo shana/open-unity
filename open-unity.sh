@@ -242,6 +242,7 @@ while (( "$#" )); do
     -z|--cache)
       shift
       CACHESERVER="$1"
+      CUSTOM_CACHESERVER=1
     ;;
     -u)
       shift
@@ -345,6 +346,14 @@ if [[ x"${LISTVERSIONS}" == x"1" ]]; then
   unityversions
   exit 0
 fi
+
+if [[ -f ~/.spoiledcat/defaults.yaml ]]; then
+  eval $(parse_yaml ~/.spoiledcat/defaults.yaml "OU_")
+  if [[ x"${CUSTOM_CACHESERVER:-}" != x"1" && x"$CACHEVERSION" != x"0" && ! -z ${OU_cacheserver_name:-} ]]; then
+    CACHESERVER=${OU_cacheserver_name}
+  fi
+fi
+
 
 if [[ x"$PROJECTPATH" == x"" ]]; then
   PROJECTPATH="$DIR"
