@@ -63,6 +63,7 @@ CP="${BIN}cp"
 BIN2TXT="binary2text"
 SED="sed"
 MKDIR="mkdir -p"
+LS="ls -y"
 
 if [[ -z ${TMPDIR:-} ]]; then
   TMPDIR=/tmp
@@ -376,7 +377,7 @@ fi
 
 if [[ x"${SWITCHVERSION}" == x"1" ]]; then
   unityversions
-  local available=$(ls "$BASEUNITYPATH"|grep -v Hub)
+  local available=$($LS "$BASEUNITYPATH"|grep -v Hub)
   available=(${available})
 
   echo "Select a version, or enter to cancel"
@@ -398,7 +399,7 @@ if [[ x"${PRINT}" == x"1" ]]; then
     UNITYVERSION="$( $CAT "$PROJECTPATH/ProjectSettings/ProjectVersion.txt" | $GREP "m_EditorVersion:" | $CUT -d' ' -f 2)"
   fi
 
-  local _latestunity=$(ls "$BASEUNITYPATH"|grep -v Hub|tail -n1)
+  local _latestunity=$($LS "$BASEUNITYPATH"|grep -v Hub|tail -n1)
   UNITYPATH="${BASEUNITYPATH}/${_latestunity}"
   if [[ x"$OS" == x"Mac" ]]; then
     UNITYTOOLSPATH="$UNITYPATH/Unity.app/Contents/Tools"
@@ -449,7 +450,7 @@ if [[ x"${UNITYPATH}" == x"" ]]; then
       echo "" >&2
       echo "Error: No Unity version detected in project." >&2
       unityversions
-      local available=$(ls "$BASEUNITYPATH"|grep -v Hub)
+      local available=$($LS "$BASEUNITYPATH"|grep -v Hub)
       available=(${available})
 
       echo "Select a version, or enter to cancel"
@@ -677,7 +678,7 @@ function run_unity {
 # ======= HELPERS ========== #
 
 function unityversions() {
-  local available=$(ls "$BASEUNITYPATH"|grep -v Hub)
+  local available=$($LS "$BASEUNITYPATH"|grep -v Hub)
   local availablecount=(${available#})
   availablecount=${#availablecount[@]}
   available=(${available})
