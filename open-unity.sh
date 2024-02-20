@@ -993,14 +993,11 @@ function parse_yaml {
    local prefix=${2:-}
    local separator=${3:-_}
 
-   local indexfix
+   local indexfix=0
    # Detect awk flavor
    if awk --version 2>&1 | grep -q "GNU Awk" ; then
       # GNU Awk detected
       indexfix=-1
-   elif awk -Wv 2>&1 | grep -q "mawk" ; then
-      # mawk detected
-      indexfix=0
    fi
 
    local s='[[:space:]]*' sm='[ \t]*' w='[a-zA-Z0-9_]*' fs=$(echo @|tr @ '\034') i='  '
