@@ -41,7 +41,8 @@ FOREGROUND=0
 PROJECTPATH=
 TARGET=""
 METHOD=""
-ARGS=""
+ARGS=()
+UNITY_ARGS=()
 UNITYPATH=""
 
 if [[ -e "/c/" ]]; then
@@ -50,7 +51,7 @@ if [[ -e "/c/" ]]; then
   ISWIN=1
 fi
 
-if [[ x"$OS" == x"Windows" ]]; then
+if [[ "$OS" == "Windows" ]]; then
   BIN="/usr/bin/"
 fi
 
@@ -64,7 +65,7 @@ BIN2TXT="binary2text"
 SED="sed"
 MKDIR="mkdir -p"
 LS="ls -y"
-if [[ x"$($LS -y>/dev/null 2>&1 && echo 0 || echo 1)" == x"1"  ]];then
+if [[ "$($LS -y>/dev/null 2>&1 && echo 0 || echo 1)" == "1"  ]];then
   LS="ls"
 fi
 
@@ -72,7 +73,7 @@ if [[ -z ${TMPDIR:-} ]]; then
   TMPDIR=/tmp
 fi
 
-if [[ x"$OS" == x"Windows" ]]; then
+if [[ "$OS" == "Windows" ]]; then
   BASEUNITYPATH="/c/Program Files/Unity/Hub/Editor"
   BIN2TXT="${BIN2TXT}.exe"
 fi
@@ -182,7 +183,7 @@ EOF
 
 function main() {
 
-if [[ x"$OS" == x"Windows" ]]; then
+if [[ "$OS" == "Windows" ]]; then
   HUBPATH="$( echo ~/AppData/Roaming/UnityHub/ | xargs realpath )" || true
 else
   HUBPATH="$( cd ~/Library/Application\ Support/UnityHub/ && pwd )" || true
@@ -196,16 +197,16 @@ if [[ -f $HUBPATH ]]; then
   tmp="$( $CAT "$HUBPATH" | $SED -E 's, ,\\ ,g' | $SED -E 's,",,g' )"
   if [[ x"$tmp" != x"" ]]; then
     BASEUNITYPATH="$tmp"
-    if [[ x"$OS" == x"Windows" ]]; then
-      BASEUNITYPATH="$( realpath $BASEUNITYPATH )"
+    if [[ "$OS" == "Windows" ]]; then
+      BASEUNITYPATH="$( realpath "$BASEUNITYPATH" )"
     fi
   fi
 fi
 
 local ARGSONLY=0
 while (( "$#" )); do
-  if [[ x"$ARGSONLY" == x"1" ]]; then
-    ARGS="${ARGS} $1"
+  if [[ "$ARGSONLY" == "1" ]]; then
+    ARGS+=("$1")
     shift
     continue
   fi
@@ -334,43 +335,45 @@ while (( "$#" )); do
     *)
     # check if it's a platform flag, otherwise append it to the arguments
     local tmp=$(platforms "$1")
-    if [[ ! -z $tmp ]]; then
+    if [[ -n $tmp ]]; then
       TARGET=$tmp
-    elif [[ -d "$1" && x"$PROJECTPATH" == x"" ]]; then
-      PROJECTPATH=$(cd $1 && pwd)
+    elif [[ -d "$1" && "$PROJECTPATH" == "" ]]; then
+      PROJECTPATH=$(cd "$1" && pwd)
     else
-      ARGS="${ARGS} $1"
+      ARGS+=("$1")
     fi
     ;;
   esac
   shift
 done
 
-if [[ x"${LISTVERSIONS}" == x"1" ]]; then
+if [[ "${LISTVERSIONS}" == "1" ]]; then
   unityversions
   exit 0
 fi
 
 if [[ -f ~/.spoiledcat/defaults.yaml ]]; then
   eval $(parse_yaml ~/.spoiledcat/defaults.yaml "OU_")
-  if [[ x"${CUSTOM_CACHESERVER:-}" != x"1" && x"$CACHEVERSION" != x"0" && ! -z ${OU_cacheserver_name:-} ]]; then
+  if [[ x"${CUSTOM_CACHESERVER:-}" != x"1" && x"$CACHEVERSION" != x"0" && -n ${OU_cacheserver_name:-} ]]; then
     CACHESERVER=${OU_cacheserver_name}
   fi
 fi
 
-
-if [[ x"$PROJECTPATH" == x"" ]]; then
+if [[ "$PROJECTPATH" == "" ]]; then
   PROJECTPATH="$DIR"
 fi
 
 PROJECTPATH="$(echo "$PROJECTPATH" | $SED -E 's,/$,,')"
+
+LOGFOLDER="$PROJECTPATH/Logs"
+LOGFILE="$LOGFOLDER/Editor.log"
 
 if [[ ! -d "${PROJECTPATH}/Assets" && $SKIPPATHCHECK != 1 ]]; then
   echo "" >&2
   echo "Error: Invalid path ${PROJECTPATH}" >&2
   echo "Would you like to create a new project in ${PROJECTPATH}?"
   read -n1 -r -p "Press y to create a new project in ${PROJECTPATH}, or any key to cancel..." key
-  if [[ x"$key" == x'y' ]]; then
+  if [[ "$key" == 'y' ]]; then
     $MKDIR "${PROJECTPATH}/Assets"
   else
     usage
@@ -378,7 +381,7 @@ if [[ ! -d "${PROJECTPATH}/Assets" && $SKIPPATHCHECK != 1 ]]; then
   fi
 fi
 
-if [[ x"${SWITCHVERSION}" == x"1" ]]; then
+if [[ "${SWITCHVERSION}" == "1" ]]; then
   unityversions
   local available=$($LS "$BASEUNITYPATH"|grep -v Hub)
   available=(${available})
@@ -392,19 +395,19 @@ if [[ x"${SWITCHVERSION}" == x"1" ]]; then
   else
     echo "Set which Unity to use with -v" >&2
     usage
-    exit -1
+    exit 2
   fi
 fi
 
 # print data about the project and exit
-if [[ x"${PRINT}" == x"1" ]]; then
+if [[ "${PRINT}" == "1" ]]; then
   if [[ -f "$PROJECTPATH/ProjectSettings/ProjectVersion.txt" ]]; then
     UNITYVERSION="$( $CAT "$PROJECTPATH/ProjectSettings/ProjectVersion.txt" | $GREP "m_EditorVersion:" | $CUT -d' ' -f 2)"
   fi
 
   local _latestunity=$($LS "$BASEUNITYPATH"|grep -v Hub|tail -n1)
   UNITYPATH="${BASEUNITYPATH}/${_latestunity}"
-  if [[ x"$OS" == x"Mac" ]]; then
+  if [[ "$OS" == "Mac" ]]; then
     UNITYTOOLSPATH="$UNITYPATH/Unity.app/Contents/Tools"
     UNITYPATH="$UNITYPATH/Unity.app/Contents/MacOS"
   else
@@ -428,7 +431,7 @@ if [[ x"${PRINT}" == x"1" ]]; then
 
       TARGET=$(platforms "$ACTIVETARGET")
 
-      if [[ x"$TARGET" == x"" ]]; then
+      if [[ "$TARGET" == "" ]]; then
         TARGET=Unknown
       fi
     fi
@@ -445,8 +448,8 @@ EOF
 fi
 
 
-if [[ x"${UNITYPATH}" == x"" ]]; then
-  if [[ x"${UNITYVERSION}" == x"" ]]; then
+if [[ "${UNITYPATH}" == "" ]]; then
+  if [[ "${UNITYVERSION}" == "" ]]; then
     if [[ -f "$PROJECTPATH/ProjectSettings/ProjectVersion.txt" ]]; then
       UNITYVERSION="$( $CAT "$PROJECTPATH/ProjectSettings/ProjectVersion.txt" | $GREP "m_EditorVersion:" | $CUT -d' ' -f 2)"
     else
@@ -465,7 +468,7 @@ if [[ x"${UNITYPATH}" == x"" ]]; then
       else
         echo "Set which Unity to use -v" >&2
         usage
-        exit -1
+        exit 2
       fi
     fi
   else
@@ -491,11 +494,11 @@ if [[ x"${UNITYPATH}" == x"" ]]; then
     echo "Error: Unity not found at ${BASEUNITYPATH}/${UNITYVERSION}" >&2
     echo "Install Unity v$UNITYVERSION or use a different version with -ov or -v" >&2
     usage
-    exit -1
+    exit 2
   fi
 
 
-  if [[ x"$OS" == x"Mac" ]]; then
+  if [[ "$OS" == "Mac" ]]; then
     UNITYTOOLSPATH="$UNITYPATH/Unity.app/Contents/Tools"
     UNITYPATH="$UNITYPATH/Unity.app/Contents/MacOS"
   else
@@ -517,10 +520,8 @@ if [[ ! -f "$UNITYTOOLSPATH/$BIN2TXT" ]]; then
   echo "Error: Unity not found at ${UNITYPATH}" >&2
   exit 1
 fi
-LOGFOLDER="$PROJECTPATH/Logs"
-LOGFILE="$LOGFOLDER/Editor.log"
 
-if [[ x"$TARGET" == x"" ]]; then
+if [[ "$TARGET" == "" ]]; then
 
   EDITORUSERBUILDSETTINGS="$PROJECTPATH/Library/EditorUserBuildSettings.asset"
   BUILDSETTINGS="$DIR/buildsettings.txt"
@@ -537,7 +538,7 @@ if [[ x"$TARGET" == x"" ]]; then
 
       TARGET=$(platforms "$ACTIVETARGET")
 
-      if [[ x"$TARGET" == x"" ]]; then
+      if [[ "$TARGET" == "" ]]; then
         echo "Error: Invalid target $ACTIVETARGET" >&2
         usage
         usage_platforms
@@ -547,46 +548,43 @@ if [[ x"$TARGET" == x"" ]]; then
   fi
 fi
 
-if [[ x"$TARGET" == x"" ]]; then
+if [[ "$TARGET" == "" ]]; then
   echo "" >&2
   local currentplat=-w
-  [[ ! -z $ISMAC ]] && currentplat=-m
+  [[ -n $ISMAC ]] && currentplat=-m
   TARGET=$(platforms "$currentplat")
   echo "Project has no active target, defaulting to ${TARGET}" >&2
   echo "Pass one of the platform flags to set a specific platform." >&2
 fi
 
-if [[ x"$BUILD" == x"1" && x"$METHOD" == x"" ]]; then
+if [[ "$BUILD" == "1" && "$METHOD" == "" ]]; then
   METHOD="BuildHelp.BuildIt_${TARGET}_${CONFIGURATION}"
 fi
 
-UNITY_ARGS="-disable-assembly-updater"
+UNITY_ARGS+=("-disable-assembly-updater")
 
-if [[ x"$CACHEVERSION" == x"1" ]]; then
-  UNITY_ARGS="${UNITY_ARGS} -CacheServerIPAddress $CACHESERVER"
-elif  [[ x"$CACHEVERSION" == x"2" ]]; then
-  UNITY_ARGS="${UNITY_ARGS} -cacheServerEndpoint $CACHESERVER -adb2 -EnableCacheServer"
+if [[ "$CACHEVERSION" == "1" ]]; then
+  UNITY_ARGS+=("-CacheServerIPAddress" "$CACHESERVER")
+elif  [[ "$CACHEVERSION" == "2" ]]; then
+  UNITY_ARGS+=("-cacheServerEndpoint" "$CACHESERVER" "-adb2" "-EnableCacheServer")
 fi
 
-if [[ x"$BATCH" == x"1" ]]; then
-  UNITY_ARGS="${UNITY_ARGS} -batchmode -nographics"
+if [[ "$BATCH" == "1" ]]; then
+  UNITY_ARGS+=("-batchmode" "-nographics")
 fi
 
-if [[ x"$QUIT" == x"1" ]]; then
-  UNITY_ARGS="${UNITY_ARGS} -quit"
+if [[ "$QUIT" == "1" ]]; then
+  UNITY_ARGS+=("-quit")
 fi
 
 if [[ x"$METHOD" != x"" ]]; then
-  UNITY_ARGS="${UNITY_ARGS} -executeMethod ${METHOD}"
+  UNITY_ARGS+=("-executeMethod" "${METHOD}")
 fi
 
-LOGFILE=$(printf %q "$LOGFILE")
-UNITY_ARGS="${UNITY_ARGS} -logFile $LOGFILE"
-
-
+UNITY_ARGS+=("-logFile" "$LOGFILE")
 
 # do the license dance when the user has selected an existing configured license
-if [[ x"$LICENSE" != x"" || x"$LICRETURN" == x"1" ]]; then
+if [[ x"$LICENSE" != x"" || "$LICRETURN" == "1" ]]; then
   if [[ ! -f ~/.spoiledcat/licenses.yaml ]]; then
     echo "There are no configured license"
     return 0
@@ -599,7 +597,7 @@ if [[ x"$LICENSE" != x"" || x"$LICRETURN" == x"1" ]]; then
 
   local onlyreturn=0
 
-  if [[ x"$LICENSE" == x"" ]]; then
+  if [[ "$LICENSE" == "" ]]; then
     onlyreturn=1
   fi
 
@@ -617,40 +615,44 @@ if [[ x"$LICENSE" != x"" || x"$LICRETURN" == x"1" ]]; then
     license_select
   fi
 
-  license=($(license_get $LICENSE))
+  license=($(license_get "$LICENSE"))
 
-  UNITY_ARGS_LICENSE="${UNITY_ARGS} -batchmode -quit -projectPath $TMPDIR -nographics -username ${license[0]} -password ${license[1]}"
+  UNITY_ARGS_LICENSE=("${UNITY_ARGS[@]}" "-batchmode" "-quit" "-projectPath" "$TMPDIR" "-nographics" "-username" "${license[0]}" "-password" "${license[1]}")
 
-  if [[ x"$LICRETURN" == x"1" ]]; then
+  if [[ "$LICRETURN" == "1" ]]; then
     echo ""
     echo "Returning license first..."
     echo ""
 
-    run_unity 1 ${UNITY_ARGS_LICENSE} -returnlicense
+    run_unity 1 "${UNITY_ARGS_LICENSE[@]}" "-returnlicense"
   fi
 
   if [[ $onlyreturn == 1 ]]; then
     return 0
   else
     echo ""
-    run_unity 1 ${UNITY_ARGS_LICENSE} -serial ${license[2]}
+    run_unity 1 "${UNITY_ARGS_LICENSE[@]}" "-serial" "${license[2]}"
   fi
 fi
 
-PROJECTPATH=$(printf %q "$PROJECTPATH")
-UNITY_ARGS="${UNITY_ARGS} -buildTarget $TARGET -projectPath $PROJECTPATH ${ARGS}"
+UNITY_ARGS+=("-buildTarget" "$TARGET" "-projectPath" "$PROJECTPATH" "${ARGS[@]}")
 
 echo "Opening project ${PROJECTPATH} with $UNITYVERSION : $TARGET"
-run_unity $FOREGROUND $UNITY_ARGS
+run_unity $FOREGROUND "${UNITY_ARGS[@]}"
 
 }
 
 function run_unity {
   local wait=$1
   shift
-  local args=$@
 
-  echo "\"$UNITYPATH/Unity\" $args"
+  local cmd=($"$UNITYPATH/Unity")
+  while (( "$#" )); do
+    cmd+=("$1")
+    shift
+  done
+
+  echo "${cmd[@]}"
 
   if [[ $AUTOCONFIRM != 1 ]]; then
     read -n1 -r -p "Press space to continue..." key
@@ -667,11 +669,15 @@ function run_unity {
   fi
 
   { set +e; } 2>/dev/null
+  oldifs=$IFS
+  # really make sure bash doesn't split words and add quotes when we're invoking this
+  IFS=$
   if [[ $wait == 1 ]]; then
-    $"$UNITYPATH/Unity" $args
+    ${cmd[@]}
   else
-    "$UNITYPATH/Unity" $args &
+    ${cmd[@]} &
   fi
+  IFS=$oldifs
   { set -e; } 2>/dev/null
 
   echo ""
@@ -686,7 +692,7 @@ function unityversions() {
   availablecount=${#availablecount[@]}
   available=(${available})
   availablecount=$((availablecount-1))
-  for i in `seq 0 $availablecount`; do
+  for i in $(seq 0 $availablecount); do
   echo "$((i+1))) ${available[$i]}"
   done
 }
@@ -718,7 +724,7 @@ function license_select {
   licensecount=(${UL_licenses_#})
   licensecount=${#licensecount[@]}
 
-  for i in `seq 1 $licensecount`; do
+  for i in $(seq 1 "$licensecount"); do
     local plat="UL_licenses_${i}_platform"
     local license="UL_licenses_${i}_license"
     echo "$i) ${!plat} => ${!license}"
@@ -752,7 +758,7 @@ EOF
   echo ""
   read -n1 -r -p 'Continue? (Enter or Space to continue, or any other key to quit):' continue
 
-  if [[ ! -z "$continue" ]]; then
+  if [[ -n "$continue" ]]; then
     echo ""
     echo "Exiting"
     return
@@ -771,7 +777,7 @@ EOF
 
   local count=${#LIC_PLAT[@]}
   count=$((count-1))
-  for i in `seq 1 $count`; do
+  for i in $(seq 1 $count); do
     cat << EOF
 $i) ${LIC_PLAT[$i]}
 EOF
@@ -842,7 +848,7 @@ function license_list() {
 
   licensecount=(${UL_licenses_#})
   licensecount=${#licensecount[@]}
-  for i in `seq 1 $licensecount`; do
+  for i in $(seq 1 "$licensecount"); do
     local platform="UL_licenses_${i}_platform"
     local license="UL_licenses_${i}_license"
     echo "${!platform} => ${!license}"
@@ -866,7 +872,7 @@ EOF
 
   licensecount=(${UL_licenses_#})
   licensecount=${#licensecount[@]}
-  for i in `seq 1 $licensecount`; do
+  for i in $(seq 1 "$licensecount"); do
     local platform="UL_licenses_${i}_platform"
     local license="UL_licenses_${i}_license"
     echo "$i) ${!platform} => ${!license}"
@@ -876,7 +882,7 @@ EOF
   read -r selection
 
   if [[ ${selection:-} == [1-9] ]]; then
-    lic_remove $selection
+    lic_remove "$selection"
   fi
 }
 
@@ -888,7 +894,7 @@ function lic_remove() {
 
   local licensecount=(${UL_licenses_#})
   licensecount=${#licensecount[@]}
-  for i in `seq 1 $licensecount`; do
+  for i in $(seq 1 "$licensecount"); do
     local platform="UL_licenses_${i}_platform"
     platform=${!platform}
     if [[ $i == $index ]]; then
@@ -932,7 +938,7 @@ function lic_add_or_update() {
 
   local licensecount=(${UL_licenses_#})
   licensecount=${#licensecount[@]}
-  for i in `seq 1 $licensecount`; do
+  for i in $(seq 1 "$licensecount"); do
     local platform="UL_licenses_${i}_platform"
     platform=${!platform}
     local username="UL_licenses_${i}_username"
@@ -942,7 +948,7 @@ function lic_add_or_update() {
     local license="UL_licenses_${i}_license"
     license=${!license}
 
-    if [[ x"$platform" == x"$newplat" ]]; then
+    if [[ "$platform" == "$newplat" ]]; then
       found=1
       username=$newuser
       password=$newpwd
@@ -1004,8 +1010,8 @@ function parse_yaml {
    fi
 
    local s='[[:space:]]*' sm='[ \t]*' w='[a-zA-Z0-9_]*' fs=$(echo @|tr @ '\034') i='  '
-   cat $1 | \
-   awk -F$fs "{multi=0;
+   cat "$1" | \
+   awk -F"$fs" "{multi=0;
        if(match(\$0,/$sm\|$sm$/)){multi=1; sub(/$sm\|$sm$/,\"\");}
        if(match(\$0,/$sm>$sm$/)){multi=2; sub(/$sm>$sm$/,\"\");}
        while(multi>0){
@@ -1055,7 +1061,7 @@ function parse_yaml {
         -e "s|^\($s\)[\"']\?\([^&][^$fs]\+\)[\"']$s\$|\1$fs$fs$fs\2|" \
         -e "s|^\($s\)[\"']\?\([^&][^$fs]\+\)$s\$|\1$fs$fs$fs\2|" \
         -e "s|$s\$||p" | \
-   awk -F$fs "{
+   awk -F"$fs" "{
       gsub(/\t/,\"        \",\$1);
       if(NF>3){if(value!=\"\"){value = value \" \";}value = value  \$4;}
       else {
