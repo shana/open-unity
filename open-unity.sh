@@ -64,6 +64,9 @@ BIN2TXT="binary2text"
 SED="sed"
 MKDIR="mkdir -p"
 LS="ls -y"
+if [[ x"$($LS -y>/dev/null 2>&1 && echo 0 || echo 1)" == x"1"  ]];then
+  LS="ls"
+fi
 
 if [[ -z ${TMPDIR:-} ]]; then
   TMPDIR=/tmp
