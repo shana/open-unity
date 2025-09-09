@@ -635,7 +635,7 @@ if [[ x"$LICENSE" != x"" || "$LICRETURN" == "1" ]]; then
   fi
 fi
 
-UNITY_ARGS+=("-buildTarget" "$TARGET" "-projectPath" "$PROJECTPATH" "${ARGS[@]}")
+UNITY_ARGS+=("-buildTarget" "$TARGET" "-projectPath" "$PROJECTPATH" "${ARGS[@]:-}")
 
 echo "Opening project ${PROJECTPATH} with $UNITYVERSION : $TARGET"
 run_unity $FOREGROUND "${UNITY_ARGS[@]}"
